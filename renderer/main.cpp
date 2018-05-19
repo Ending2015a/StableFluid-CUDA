@@ -242,10 +242,6 @@ public:
             pivot_y = (canvas.height-len_y)/2;
         }
         
-        std::cout << "len_x = " << len_x << std::endl;
-        std::cout << "len_y = " << len_y << std::endl;
-        std::cout << "pivot_x = " << pivot_x << std::endl;
-        std::cout << "pivot_y = " << pivot_y << std::endl;
     }
 
     void drawGrid()
@@ -343,8 +339,6 @@ int main(int argc, char **argv)
         fin.read((char*)&x, sizeof(double));
         fin.read((char*)&y, sizeof(double));
         particles.push_back({x, y});
-        if(i < 10)
-            std::cout << "p" << i << " : (" << x << ", " << y << ")" << std::endl;
     }
 
     fin.close();

@@ -2,6 +2,7 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <sstream>
 
 #include <cstring>
 #include <cassert>
@@ -27,13 +28,13 @@ const int block_size = 16;
 int max_iter;
 double tol;
 
-__constant__ int d_nx;
-__constant__ int d_ny;
-__constant__ double d_dx;
-__constant__ double d_dy;
-__constant__ double d_nu;
-__constant__ double d_rho;
-__constant__ double d_g;
+__device__ __constant__ int d_nx;
+__device__ __constant__ int d_ny;
+__device__ __constant__ double d_dx;
+__device__ __constant__ double d_dy;
+__device__ __constant__ double d_nu;
+__device__ __constant__ double d_rho;
+__device__ __constant__ double d_g;
 
 // ===== MAC grid =====
 double *markers_x;
@@ -59,7 +60,7 @@ double *d_b;
 
 // safe get from 2D matrix
 template<typename T>
-__device__ inline T _safe_get(T const *field, const int x, const int y, 
+__device__ inline T _safe_get(const T* const field, const int x, const int y, 
                                 const int lim_x, const int lim_y)
 {
     if(x < 0 || x >= lim_x || y < 0 || y >= lim_y)
@@ -69,7 +70,7 @@ __device__ inline T _safe_get(T const *field, const int x, const int y,
 
 // safe set to 2D matrix
 template<typename T>
-__device__ inline void _safe_set(T const *field, const int x, const int y,
+__device__ inline void _safe_set(T* const field, const int x, const int y,
                                 const int lim_x, const int lim_y, const T value)
 {
     if(x < 0 || x >= lim_x || y < 0 || y >= lim_y)
@@ -78,7 +79,7 @@ __device__ inline void _safe_set(T const *field, const int x, const int y,
 }
 
 // bilinear interpolation
-__device__ inline double _interpolate(double const *field, const double x, const double y,
+__device__ inline double _interpolate(const double* const field, const double x, const double y,
                                      const int lim_x, const int lim_y)
 {
     // global coord to index coord
@@ -90,8 +91,8 @@ __device__ inline double _interpolate(double const *field, const double x, const
     double fly = floor(idx_y);
 
     // lower
-    int x0 = (int)fx;
-    int y0 = (int)fy;
+    int x0 = (int)flx;
+    int y0 = (int)fly;
 
     //fractional part
     double fcx = idx_x - flx;
@@ -99,21 +100,21 @@ __device__ inline double _interpolate(double const *field, const double x, const
 
     // upper
     int x1 = x0+1;
-    int y1 = y1+1;
+    int y1 = y0+1;
 
     // interp x
-    double fy1 = (1.-flx) * _safe_get(field, x0, y0, lim_x, lim_y) 
-                    + flx * _safe_get(field, x1, y0, lim_x, lim_y);
-    double fy2 = (1.-flx) * _safe_get(field, x0, y1, lim_x, lim_y)
-                    + flx * _safe_get(field, x1, y1, lim_x, lim_t);
+    double fy1 = (1.-fcx) * _safe_get(field, x0, y0, lim_x, lim_y) 
+                    + fcx * _safe_get(field, x1, y0, lim_x, lim_y);
+    double fy2 = (1.-fcx) * _safe_get(field, x0, y1, lim_x, lim_y)
+                    + fcx * _safe_get(field, x1, y1, lim_x, lim_y);
     // interp y
-    double f = (1.-fly) * fy1 + fly * fy2;
+    double f = (1.-fcy) * fy1 + fcy * fy2;
 
     return f;
 }
 
 // 4th-order Rung-Jutta (ODE solver)
-__device__ inline void _RK4(double const *u, double const *v, const double dt,
+__device__ inline void _RK4(const double* const u, const double* const v, const double dt,
                             double XG, double YG, double *XP, double *YP, 
                             const int lim_ux, const int lim_uy, const int lim_vx, const int lim_vy)
 {
@@ -141,7 +142,7 @@ __device__ inline void _RK4(double const *u, double const *v, const double dt,
 
 // Update Grid Status (kernel)
 template<int block_size>
-__global__ void _updatestatus(const int num, double const *x, double const *y, int const *st)
+__global__ void _updatestatus(const int num, const double* const x, const double* const y, int* const st)
 {
     // thread index
     const int idx = block_size * blockIdx.x + threadIdx.x;
@@ -157,8 +158,8 @@ __global__ void _updatestatus(const int num, double const *x, double const *y, i
 
 // Advect Velocity (kernel)
 template<int block_size>
-__global__ void _advect(double const *u, double const *bu, 
-                    double const *field_u, double const *field_v, const double dt, 
+__global__ void _advect(double* const u, const double* const bu, 
+                    const double* const field_u, const double* const field_v, const double dt, 
                     const double off_x, const double off_y, const int lim_x, const int lim_y)
 {
     // thread index
@@ -179,13 +180,13 @@ __global__ void _advect(double const *u, double const *bu,
     _RK4(field_u, field_v, -dt, XG, YG, &XP, &YP, d_nx+1, d_ny, d_nx, d_ny+1);
 
     // update 
-    u[idx] = _intepolate(bu, XP-off_x*d_dx, YP-off_y*d_dy, lim_x, lim_y);
+    u[idx] = _interpolate(bu, XP-off_x*d_dx, YP-off_y*d_dy, lim_x, lim_y);
 }
 
 
 // Add Force (kernel)
 template<int block_size>
-__global__ void _addforce(double const *v, const double dt)
+__global__ void _addforce(double* const v, const double dt)
 {
     // thread index
     const int y = block_size * blockIdx.y + threadIdx.y;
@@ -202,8 +203,8 @@ __global__ void _addforce(double const *v, const double dt)
 
 // Advect markers (kernel)
 template<int block_size>
-__global__ void _advectmarkers(const int num, double const *x, double const *y,
-                            double const *field_u, double const *field_v, 
+__global__ void _advectmarkers(const int num, double* const x, double* const y,
+                            const double* const field_u, const double* const field_v, 
                             const double dt, const double lim_x, const double lim_y)
 {
     // thread index
@@ -256,7 +257,7 @@ void advect()
     _advect<block_size><<<block, thread>>>(d_u, d_bu, d_bu, d_bv, dt, 0, 0.5, nx+1, ny);
 
     // vertical dircetion
-    _advect<block_size><<<block, thread>>>(d_v, d_bu, d_bu, d_bv, dt, 0.5, 0, nx, ny+1);
+    _advect<block_size><<<block, thread>>>(d_v, d_bv, d_bu, d_bv, dt, 0.5, 0, nx, ny+1);
 }
 
 void addForce()
@@ -265,7 +266,7 @@ void addForce()
     const dim3 thread( block_size, block_size, 1 );
 
     // vertical direction
-    _addforce<block_size><<<block, thread>>>(d_v);
+    _addforce<block_size><<<block, thread>>>(d_v, dt);
 }
 
 
@@ -315,26 +316,26 @@ void initialize_grid()
 
 void initialize_params()
 {
-    error_check(cudaMemcpyToSymbol(d_nx, nx, sizeof(int)));
-    error_check(cudaMemcpyToSymbol(d_ny, ny, sizeof(int)));    
-    error_check(cudaMemcpyToSymbol(d_dx, dx, sizeof(double)));    
-    error_check(cudaMemcpyToSymbol(d_dy, dy, sizeof(double))); 
+    error_check(cudaMemcpyToSymbol(d_nx, &nx, sizeof(int), 0, cudaMemcpyHostToDevice));
+    error_check(cudaMemcpyToSymbol(d_ny, &ny, sizeof(int), 0, cudaMemcpyHostToDevice));    
+    error_check(cudaMemcpyToSymbol(d_dx, &dx, sizeof(double), 0, cudaMemcpyHostToDevice));    
+    error_check(cudaMemcpyToSymbol(d_dy, &dy, sizeof(double), 0, cudaMemcpyHostToDevice)); 
 
-    error_check(cudaMemcpyToSymbol(d_nu, nu, sizeof(double)));    
-    error_check(cudaMemcpyToSymbol(d_rho, rho, sizeof(double)));    
-    error_check(cudaMemcpyToSymbol(d_g, g, sizeof(double)));
+    error_check(cudaMemcpyToSymbol(d_nu, &nu, sizeof(double), 0, cudaMemcpyHostToDevice));    
+    error_check(cudaMemcpyToSymbol(d_rho, &rho, sizeof(double), 0, cudaMemcpyHostToDevice));    
+    error_check(cudaMemcpyToSymbol(d_g, &g, sizeof(double), 0, cudaMemcpyHostToDevice));
 }
 
 void get_result()
 {
     error_check(cudaMemcpy(markers_x, d_mx, num*sizeof(double), cudaMemcpyDeviceToHost));
-    error_check(cudamemcpy(markers_y, d_my, num*sizeof(double), cudaMemcpyDeviceToHost));
+    error_check(cudaMemcpy(markers_y, d_my, num*sizeof(double), cudaMemcpyDeviceToHost));
 }
 
 void finalize_grid()
 {
     delete[] markers_x;
-    delete[] marlers_y;
+    delete[] markers_y;
 
     cudaFree(d_mx);
     cudaFree(d_my);
@@ -354,17 +355,17 @@ void write(const char *filename)
 {
     std::ofstream fout(filename, std::ios::binary);
 
-    fin.write((char*)&nx, sizeof(int));
-    fin.write((char*)&ny, sizeof(int));
-    fin.write((char*)&dx, sizeof(double));
-    fin.write((char*)&dy, sizeof(double));
+    fout.write((char*)&nx, sizeof(int));
+    fout.write((char*)&ny, sizeof(int));
+    fout.write((char*)&dx, sizeof(double));
+    fout.write((char*)&dy, sizeof(double));
 
-    fin.write((char*)&num, sizeof(int));
+    fout.write((char*)&num, sizeof(int));
 
     for(int i=0;i<num;++i)
     {
-        fin.write((char*)&markers_x[i], sizeof(double));
-        fin.write((char*)&markers_y[i], sizeof(double));
+        fout.write((char*)&markers_x[i], sizeof(double));
+        fout.write((char*)&markers_y[i], sizeof(double));
     }
 }
 
@@ -420,16 +421,22 @@ int main(int argc, char **argv)
             addForce();
         // TODO: diffuse
         // TODO: project
+
         // TODO: extrapolate
         // TODO: constrain_velocity
         // TODO: move markers
             advectMarkers();
+
+            get_result();
+
+            char filename[30];
+            sprintf(filename, "%s_%03i.sr", argv[2], i);
+            write(filename);
+
     }
 
-    get_result();
-
     // write map
-    write(argv[2]);
+    //write(argv[2]);
 
     // TODO: free grid
     finalize_grid();
