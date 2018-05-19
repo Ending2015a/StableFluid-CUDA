@@ -1,6 +1,6 @@
 input=map.sr
 output=map.png
-width=8000
-height=4500
+width=1920
+height=1080
 
 ./main $input $output $width $height
