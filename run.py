@@ -5,17 +5,17 @@ input = 'map.sr'
 folder = 'output'
 output = 'result'
 png = 'result.png'
-steps = '50'
-dt = '0.03'
+steps = '100'
+dt = '0.01'
 nu = '1'
 rho = '1000'
 max_iter = '1000'
 tol = '1e-12'
 
-width = '640'
-height = '480'
+width = '1280'
+height = '720'
 
-os.systen("rm ./{}/*".format(folder))
+os.system("rm ./{}/*".format(folder))
 
 ############
 

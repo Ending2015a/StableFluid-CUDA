@@ -125,7 +125,13 @@ void PCGsolver::solve_gpumem(int N, int nz,
 
     std::cout << "[PCGsolver] solved in " << k << " iterations, final norm(r) = " 
               << std::scientific << rTr << std::endl;
+    d_N = 0;
+    d_nz= 0;
+}
 
+void PCGsolver::convert_coo2csr(const int N, const int nonzero, const int* cooRowIdx, int *csrRowIdx)
+{
+    error_check(cusparseXcoo2csr(cusHandle, cooRowIdx, nonzero, N, csrRowIdx, CUSPARSE_INDEX_BASE_ZERO));
 }
 
 double *PCGsolver::get_device_x()

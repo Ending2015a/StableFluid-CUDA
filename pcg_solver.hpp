@@ -42,8 +42,8 @@ private:
     double rhot;
 
     // device data size
-    int d_N;
-    int d_nz;
+    int d_N = 0;
+    int d_nz = 0;
 
     // constant
     int max_iter;
@@ -56,6 +56,8 @@ public:
     void solve_gpumem(int N, int nz,
                     double *d_A, int *d_rowIdx, int *d_colIdx,
                     double *d_b, double *d_guess);
+
+    void convert_coo2csr(const int N, const int nonzero, const int *cooRowIdx, int *csrRowIdx);
 
     double *get_device_x();
 

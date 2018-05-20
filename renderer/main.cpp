@@ -190,6 +190,7 @@ public:
     Color gray;
     Color blue1;
     Color blue2;
+    Color black;
 
     Canvas canvas;
     Grid grid;
@@ -208,16 +209,22 @@ public:
     double dx;
     double dy;
 
+    std::vector<double> u;
+    std::vector<double> v;
+
     Renderer(unsigned w, unsigned h, 
             int nx, int ny, double dx, double dy,
-            std::vector<vec2> &particle_list) 
+            std::vector<vec2> &particle_list, 
+            std::vector<double> &u, std::vector<double> &v) 
         : canvas(w, h), grid(nx, ny, dx, dy, particle_list),
           nx(nx), ny(ny), dx(dx), dy(dy), particle_size(2),
           white({1., 1., 1., 1.}),
           gray({.5, .5, .5, 1.}),
           blue1({0., 0., 1., 1.}),
           blue2({0.5, 0.5, 1., 1.}),
-          margin_x(0.9), margin_y(0.9)
+          black({0., 0., 0., 1.}),
+          margin_x(0.9), margin_y(0.9),
+          u(u), v(v)
     { grid.update(); canvas.fill(white); }
 
     void analyzeGrid()
@@ -297,11 +304,37 @@ public:
         }
     }
 
+    void drawField()
+    {
+        double ddx = (double)len_x/(double)(nx+2);
+        double ddy = (double)len_y/(double)(ny+2);
+
+        if(u.size() == 0 || v.size() == 0)
+            return;
+
+        for(int i=0;i<ny;++i)
+        {
+            for(int j=0;j<nx;++j)
+            {
+                double fu = (u[i*(nx+1) + j+1] + u[i*(nx+1) + j])/2.;
+                double fv = (v[(i+1)*nx+j] + v[i*nx+j])/2.;
+                double m = sqrt(fu*fu+fv*fv);
+
+                fu = fu/m;
+                fv = fv/m;
+
+                int off_x = pivot_x + ddx * (j+1);
+                int off_y = pivot_y + ddy * (i+1);
+            }
+        }
+    }
+
     void render()
     {
         analyzeGrid();
         drawGrid();
         drawParticles();
+        drawField();
     }
 
     void save(const char *filename){ canvas.image.save(filename); }
@@ -309,10 +342,10 @@ public:
 
 
 
-// ./exe input output width height
+// ./exe input output width height field
 int main(int argc, char **argv)
 {
-    assert(argc == 5);
+    assert(argc == 5 || argc == 6);
 
     unsigned width = atoi(argv[3]);
     unsigned height = atoi(argv[4]);
@@ -341,10 +374,32 @@ int main(int argc, char **argv)
         particles.push_back({x, y});
     }
 
+    bool field = (argc == 6);
+
+    std::vector<double> field_u;
+    std::vector<double> field_v;
+
+    if(field)
+    {
+        field_u.reserve( (nx+1)*ny );
+        field_v.reserve( nx*(ny+1) );
+        double tmp;
+        for(int i=0;i<(nx+1)*ny;++i)
+        {
+            fin.read((char*)&tmp, sizeof(double));
+            field_u.push_back(tmp);
+        }
+        for(int i=0;i<nx*(ny+1);++i)
+        {
+            fin.read((char*)&tmp, sizeof(double));
+            field_v.push_back(tmp);
+        }
+    }
+
     fin.close();
 
 
-    Renderer renderer(width, height, nx, ny, dx, dy, particles);
+    Renderer renderer(width, height, nx, ny, dx, dy, particles, field_u, field_v);
 
     renderer.render();
     renderer.save(argv[2]);
