@@ -22,6 +22,7 @@ int steps;
 double dt;
 double nu;
 double rho;
+double rad = 0.06;
 const double g = 9.81;
 const int block_size = 16;
 
@@ -50,6 +51,7 @@ double *d_v;  // vertical component of velocity
 double *d_p;  // pressure
 int *d_st;  // status
 int *d_pt;
+double *d_phi;
 
 double *d_bu;  // backup u
 double *d_bv;  // backup v
@@ -381,8 +383,8 @@ __global__ void _construct_right_hand_side(int* const status, int* const idxmap,
     const int pos = idxmap[idx];
 
     double d = 0;
-    d += -(u[uidx+1]-u[uidx])/d_dx;
-    d += -(v[idx+d_nx]-v[idx])/d_dy;
+    d += (-u[uidx+1]+u[uidx])/d_dx;
+    d += (-v[idx+d_nx]+v[idx])/d_dy;
 
     b[pos] = d;
 }
@@ -407,9 +409,6 @@ __global__ void _update_pressure(int* const status, int* const idxmap,
         v = 0;
     else
         v = xp[pos];
-
-   // if(!isfinite(v))
-   //     v = 0;
 
     p[idx] = v;
 }
@@ -436,7 +435,7 @@ __global__ void _update_velocity_v_by_pressure(int* const status, int* const pt,
     const double gd = -dt/d_rho * (pidx-pidx_1)/d_dy;
 
     // update v
-    v[idx] = v[idx] - gd;
+    v[idx] = v[idx] + gd;
 }
 
 template<int block_size>
@@ -464,7 +463,7 @@ __global__ void _update_velocity_u_by_pressure(int* const status, int* const pt,
     const double gd = -dt/d_rho * (pidx-pidx_1)/d_dx;
     
     // update u
-    u[uidx] = u[uidx] - gd;
+    u[uidx] = u[uidx] + gd;
 }
 
 template<int block_size>
@@ -614,6 +613,10 @@ int int_reduce(int *d_array, unsigned int size)
 
 void project(PCGsolver &solver)
 {
+    // compute distant function
+
+
+
     // counting neighbors
     error_check(cudaMemset(d_neig, 0, nx*ny*sizeof(int)));
 
@@ -744,12 +747,16 @@ void project(PCGsolver &solver)
     delete[] xp;
 
     //..... debug
+
+
+
     cudaFree(d_A);
     cudaFree(d_cooRowIdx);
     cudaFree(d_rowIdx);
     cudaFree(d_colIdx);
     cudaFree(d_b);
 
+    error_check(cudaMemset(d_p, 0, nx*ny*sizeof(double)));
     _update_pressure<sz><<<block, thread>>>(d_st, d_idxmap, d_p, d_x);
     _update_velocity_u_by_pressure<sz><<<block, thread>>>(d_st, d_pt, d_p, d_u, dt);
     _update_velocity_v_by_pressure<sz><<<block, thread>>>(d_st, d_pt, d_p, d_v, dt);
@@ -777,7 +784,8 @@ void advectMarkers()
     const dim3 block( num/block_size+1 , 1, 1 );
     const dim3 thread( block_size, 1, 1 );
 
-    _advectmarkers<block_size><<<block, thread>>>(num, d_mx, d_my, d_u, d_v, dt, nx*dx, ny*dy);
+    for(int i=0;i<5;++i)
+        _advectmarkers<block_size><<<block, thread>>>(num, d_mx, d_my, d_u, d_v, 0.2*dt, nx*dx, ny*dy);
 }
 
 // ===== functions =====
@@ -796,6 +804,7 @@ void initialize_grid()
     error_check(cudaMalloc(&d_p, nx*ny*sizeof(double)));
     error_check(cudaMalloc(&d_st, nx*ny*sizeof(int)));
     error_check(cudaMalloc(&d_pt, nx*ny*sizeof(int)));
+    error_check(cudaMalloc(&d_phi, nx*ny*sizeof(double)));
 
     // create backup buffers
     error_check(cudaMalloc(&d_bu, (nx+1)*ny*sizeof(double)));
@@ -962,6 +971,8 @@ int main(int argc, char **argv)
             advect();
         // TODO: addForce
             addForce();
+        // TODO: advect
+            advect();
         // TODO: diffuse
 
         // TODO: enforce bounary
@@ -970,10 +981,10 @@ int main(int argc, char **argv)
             project(p_solver);
         // TODO: enforce boundary
             enforce_boundary();
-        // TODO: move markers
+        // TODO: clean field
+            clean_field();
+        // TODO: advect markers
             advectMarkers();
-        // TODO: clean air field
-            //clean_field();
 
         // Debugging...
             get_result();
