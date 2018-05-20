@@ -320,11 +320,17 @@ public:
                 double fv = (v[(i+1)*nx+j] + v[i*nx+j])/2.;
                 double m = sqrt(fu*fu+fv*fv);
 
-                fu = fu/m;
-                fv = fv/m;
+                fu = fu/m * ddx/4.;
+                fv = fv/m * ddy/4.;
 
                 int off_x = pivot_x + ddx * (j+1);
                 int off_y = pivot_y + ddy * (i+1);
+
+                int x1 = off_x + ddx/2. - fu;
+                int y1 = off_y + ddy/2. - fv;
+                int x2 = off_x + ddx/2. + fu;
+                int y2 = off_y + ddy/2. + fv;
+                canvas.drawLine(x1, y1, x2, y2, black);
             }
         }
     }

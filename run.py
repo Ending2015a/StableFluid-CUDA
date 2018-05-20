@@ -12,8 +12,8 @@ rho = '1000'
 max_iter = '1000'
 tol = '1e-12'
 
-width = '1280'
-height = '720'
+width = '1920'
+height = '1080'
 
 os.system("rm ./{}/*".format(folder))
 
@@ -23,7 +23,7 @@ os.system("rm ./{}/*".format(folder))
 print("simulating ...")
 
 output_path = os.path.join(folder, output)
-os.system("./main {} {} {} {} {} {} {} {}".format(input, output_path, steps, dt, nu, rho, max_iter, tol))
+os.system("./main {} {} {} {} {} {} {} {} > test.log".format(input, output_path, steps, dt, nu, rho, max_iter, tol))
 
 
 ###############
@@ -34,7 +34,7 @@ mapsr = [ os.path.join(folder, x) for x in os.listdir(folder) if x.endswith('.sr
 
 mapsr = sorted(mapsr)
 for sr in mapsr:
-    os.system('./renderer/main {} {} {} {}'.format(sr, sr.replace('.sr', '.png'), width, height))
+    os.system('./renderer/main {} {} {} {} 1'.format(sr, sr.replace('.sr', '.png'), width, height))
 
 
 ###########

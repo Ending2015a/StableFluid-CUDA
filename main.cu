@@ -92,7 +92,7 @@ __device__ inline void _safe_set(T* const field, const int x, const int y,
                                 const int lim_x, const int lim_y, const T value)
 {
     if(x < 0 || x >= lim_x || y < 0 || y >= lim_y)
-        return 0;
+        return;
     field[y*lim_x + x] = value;
 }
 
@@ -102,7 +102,7 @@ __device__ inline void _safe_add(T* const field, const int x, const int y,
 {
     if(x < 0 || x >= lim_x || y < 0 || y >= lim_y)
         return;
-    atomicAdd(field[y*lim_x + x], value);
+    atomicAdd(&field[y*lim_x + x], value);
 }
 
 // bilinear interpolation
@@ -408,8 +408,8 @@ __global__ void _update_pressure(int* const status, int* const idxmap,
     else
         v = xp[pos];
 
-    if(!isfinite(v))
-        v = 0;
+   // if(!isfinite(v))
+   //     v = 0;
 
     p[idx] = v;
 }
@@ -426,11 +426,11 @@ __global__ void _update_velocity_v_by_pressure(int* const status, int* const pt,
     if(y >= d_ny || x >= d_nx || y < 1)return;
     if(status[idx] == 0 && status[idx-d_nx] == 0)return;
 
-    int pti = pt[idx];
-    int ptj = pt[idx-d_nx];
+    //int pti = pt[idx];
+    //int ptj = pt[idx-d_nx];
 
-    double pidx = p[idx] + (pti > 9 ? pti-8:0);
-    double pidx_1 = p[idx-d_nx] + (ptj > 9 ? ptj-8:0);
+    double pidx = p[idx];// + (pti > 9 ? pti-8:0);
+    double pidx_1 = p[idx-d_nx];// + (ptj > 9 ? ptj-8:0);
 
     // negative gradient
     const double gd = -dt/d_rho * (pidx-pidx_1)/d_dy;
@@ -454,11 +454,11 @@ __global__ void _update_velocity_u_by_pressure(int* const status, int* const pt,
 
     const int uidx = idx + y;
 
-    int pti = pt[idx];
-    int ptj = pt[idx-1];
+    //int pti = pt[idx];
+    //int ptj = pt[idx-1];
 
-    double pidx = p[idx] + (pti > 9 ? pti-8:0);
-    double pidx_1 = p[idx-1] + (ptj > 9 ? ptj-8:0);
+    double pidx = p[idx];// + (pti > 9 ? pti-8:0);
+    double pidx_1 = p[idx-1];// + (ptj > 9 ? ptj-8:0);
 
     // negative gradient
     const double gd = -dt/d_rho * (pidx-pidx_1)/d_dx;
@@ -549,8 +549,7 @@ __global__ void _advectmarkers(const int num, double* const x, double* const y,
     
     YP1 = YP1 < 0. ? 0.: YP1 > lim_y ? lim_y : YP1;
     y[idx] = YP1;
-
-
+}
 
 // ===== Simulation =====
 
