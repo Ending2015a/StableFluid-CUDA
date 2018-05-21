@@ -486,10 +486,15 @@ __global__ void _update_velocity_v_by_pressure(int* const status, int* const val
     double pidx_1 = p[idx-d_nx];
 
     // negative gradient
-    const double gd = -dt/1000. * (pidx-pidx_1)/d_dy;
+    const double gd = -dt/d_rho * (pidx-pidx_1)/d_dy;
 
+    if(y == 1 && x == 20)
+        printf("gd = %lf  / v = %lf  / ", gd, v[idx]);
     // update v
     v[idx] = v[idx] + gd;
+
+    if(y == 1 && x == 20)
+        printf("v after = %lf\n", v[idx]);
     valid[idx] = 1;
 }
 
@@ -511,7 +516,7 @@ __global__ void _update_velocity_u_by_pressure(int* const status, int* const val
     double pidx_1 = p[idx-1];// + ((double)pt[idx-1]/9.);
 
     // negative gradient
-    const double gd = -dt/1000. * (pidx-pidx_1)/d_dx;
+    const double gd = -dt/d_rho * (pidx-pidx_1)/d_dx;
     
     // update u
     u[uidx] = u[uidx] + gd;
@@ -526,7 +531,7 @@ __global__ void _enforce_boundary_v(double* const v)
     const int x = block_size * blockIdx.x + threadIdx.x;
     const int idx = y * d_nx + x;
 
-    if(y != d_ny || y != 0 || x >= d_nx)return;
+    if(y != d_ny && y != 0 || x >= d_nx)return;
 
     if(y == 0 && v[idx] < 0)v[idx] = 0;
     else if(y == d_ny && v[idx] > 0)v[idx] = 0;
@@ -540,7 +545,7 @@ __global__ void _enforce_boundary_u(double* const u)
     const int x = block_size * blockIdx.x + threadIdx.x;
     const int idx = y * (d_nx+1) + x;
 
-    if(x != d_nx || x != 0 || y >= d_ny)return;
+    if(x != d_nx && x != 0 || y >= d_ny)return;
 
     if(x == 0 && u[idx] < 0)u[idx] = 0;
     else if(x == d_nx && u[idx] > 0)u[idx] = 0;
@@ -1186,15 +1191,23 @@ int main(int argc, char **argv)
             advect();
         // TODO: addForce
             addForce();
+
+            std::cout << std::endl << "step: " << i << std::endl;
+            get_result();
+            std::cout << "u force= " << u[20] << ", " << u[21] << std::endl;
+            std::cout << "v force= " << v[20] << ", " << v[20+nx] << std::endl;
+
+
+
         // TODO: enforce boundary
             enforce_boundary();
 
             get_result();
             sprintf(filename, "%s_force_%03i.sr", argv[2], i);
             write(filename);
-            std::cout << std::endl << "step: " << i << std::endl;
-            std::cout << "u = " << u[20] << ", " << u[21] << std::endl;
-            std::cout << "v = " << v[20] << ", " << v[21] << std::endl;
+
+            std::cout << "u bn= " << u[20] << ", " << u[21] << std::endl;
+            std::cout << "v bn= " << v[20] << ", " << v[20+nx] << std::endl;
 
         // TODO: project
             project(p_solver);
@@ -1205,7 +1218,12 @@ int main(int argc, char **argv)
             get_result();
             sprintf(filename, "%s_proj_%03i.sr", argv[2], i);
             write(filename);
+            std::cout << "u p= " << u[20] << ", " << u[21] << std::endl;
+            std::cout << "v p= " << v[20] << ", " << v[20+nx] << std::endl;
             std::cout << "p = " << pressure[20] << std::endl;
+            std::cout << "p l= " << pressure[19] << std::endl;
+            std::cout << "p r= " << pressure[21] << std::endl;
+            std::cout << "p u= " << pressure[20+nx] << std::endl;
 
         // TODO: extrapolate
             extrapolate();
