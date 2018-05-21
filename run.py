@@ -5,15 +5,15 @@ input = 'map.sr'
 folder = 'output'
 output = 'result'
 png = 'result.png'
-steps = '100'
+steps = '500'
 dt = '0.03'
 nu = '1'
 rho = '1000'
 max_iter = '1000'
 tol = '1e-12'
 
-width = '1280'
-height = '720'
+width = '7680'
+height = '4320'
 
 os.system("rm ./{}/*".format(folder))
 

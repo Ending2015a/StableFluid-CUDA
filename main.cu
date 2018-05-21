@@ -488,13 +488,8 @@ __global__ void _update_velocity_v_by_pressure(int* const status, int* const val
     // negative gradient
     const double gd = -dt/d_rho * (pidx-pidx_1)/d_dy;
 
-    if(y == 1 && x == 20)
-        printf("gd = %lf  / v = %lf  / ", gd, v[idx]);
     // update v
     v[idx] = v[idx] + gd;
-
-    if(y == 1 && x == 20)
-        printf("v after = %lf\n", v[idx]);
     valid[idx] = 1;
 }
 
@@ -826,8 +821,6 @@ void project(PCGsolver &solver)
     // convert from coo to csr format
     solver.convert_coo2csr(N, nonzero, d_cooRowIdx, d_rowIdx);
 
-    std::cout << std::endl;
-    std::cout << "step: " << cur_step << std::endl;
     // solve linear system
     solver.solve_gpumem(N, nonzero, d_A, d_rowIdx, d_colIdx, d_b, NULL);
 
@@ -1184,51 +1177,20 @@ int main(int argc, char **argv)
 
     for(int i=0;i<steps;++i)
     {
-        cur_step = i;
         // TODO: update status
             updateStatus();
         // TODO: advect
             advect();
         // TODO: addForce
             addForce();
-
-            std::cout << std::endl << "step: " << i << std::endl;
-            get_result();
-            std::cout << "u force= " << u[20] << ", " << u[21] << std::endl;
-            std::cout << "v force= " << v[20] << ", " << v[20+nx] << std::endl;
-
-
-
         // TODO: enforce boundary
             enforce_boundary();
-
-            get_result();
-            sprintf(filename, "%s_force_%03i.sr", argv[2], i);
-            write(filename);
-
-            std::cout << "u bn= " << u[20] << ", " << u[21] << std::endl;
-            std::cout << "v bn= " << v[20] << ", " << v[20+nx] << std::endl;
-
         // TODO: project
             project(p_solver);
-
         // TODO: clean field
             clean_field();
-
-            get_result();
-            sprintf(filename, "%s_proj_%03i.sr", argv[2], i);
-            write(filename);
-            std::cout << "u p= " << u[20] << ", " << u[21] << std::endl;
-            std::cout << "v p= " << v[20] << ", " << v[20+nx] << std::endl;
-            std::cout << "p = " << pressure[20] << std::endl;
-            std::cout << "p l= " << pressure[19] << std::endl;
-            std::cout << "p r= " << pressure[21] << std::endl;
-            std::cout << "p u= " << pressure[20+nx] << std::endl;
-
         // TODO: extrapolate
             extrapolate();
-        // TODO: enforce boundary
-            //enforce_boundary();
         // TODO: advect markers
             advectMarkers();
 
