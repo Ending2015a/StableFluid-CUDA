@@ -22,7 +22,7 @@ int steps;
 double dt;
 double nu;
 double rho;
-double rad = 0.06;
+double rad = 0.08;
 const double g = 9.81;
 const int block_size = 16;
 
@@ -36,6 +36,7 @@ __device__ __constant__ double d_dy;
 __device__ __constant__ double d_nu;
 __device__ __constant__ double d_rho;
 __device__ __constant__ double d_g;
+__device__ __constant__ double d_rad;
 
 int cur_step = 0;
 
@@ -52,6 +53,11 @@ double *d_p;  // pressure
 int *d_st;  // status
 int *d_pt;
 double *d_phi;
+
+int *d_uv;  // valid u
+int *d_vv;  // valid v
+int *d_buv;  //backup valid u
+int *d_bvv;  //backup valid v
 
 double *d_bu;  // backup u
 double *d_bv;  // backup v
@@ -186,6 +192,19 @@ __device__ inline void _RK2(const double* const u, const double* const v, const 
     *YP = YG + yk2;
 }
 
+template<int block_size>
+__global__ void _initialize(double* const grid, const int lim_x, const int lim_y, const double value)
+{
+    // thread index
+    const int y = block_size * blockIdx.y + threadIdx.y;
+    const int x = block_size * blockIdx.x + threadIdx.x;
+    const int idx = y * lim_x + x;
+
+    if(y >= lim_y || x >= lim_x)return;
+
+    grid[idx] = value;
+}
+
 // Update Grid Status (kernel)
 template<int block_size>
 __global__ void _updatestatus(const int num, const double* const x, const double* const y, int* const st, int* const pt)
@@ -235,7 +254,7 @@ __global__ void _advect(double* const u, const double* const bu,
 
 // Add Force (kernel)
 template<int block_size>
-__global__ void _addforce(double* const v, const double dt)
+__global__ void _addforce(int* const status, double* const v, const double dt)
 {
     // thread index
     const int y = block_size * blockIdx.y + threadIdx.y;
@@ -245,8 +264,29 @@ __global__ void _addforce(double* const v, const double dt)
     // out of boundaries
     if(y >= d_ny+1 || x >= d_nx)return;
 
+    if(status[idx] == 0)return;
+
     // add gravity
     v[idx] = v[idx] - dt * d_g;
+}
+
+template<int block_size>
+__global__ void _compute_SDF(double* const mx, double* const my, const int num, double* const phi)
+{
+    // thread index
+    const int y = block_size * blockIdx.y + threadIdx.y;
+    const int x = block_size * blockIdx.x + threadIdx.x;
+    const int idx = y * d_nx + x;
+
+    if(y >= d_ny || x >= d_nx)return;
+
+    double ddx = ((double)x + 0.5)/d_dx - mx[num];
+    double ddy = ((double)y + 0.5)/d_dy - my[num];
+    
+    double dist = sqrt(ddx*ddx + ddy*ddy) - d_rad;
+
+    if(dist < phi[idx])
+        phi[idx] = dist;
 }
 
 template<int block_size>
@@ -414,7 +454,7 @@ __global__ void _update_pressure(int* const status, int* const idxmap,
 }
 
 template<int block_size>
-__global__ void _update_velocity_v_by_pressure(int* const status, int* const pt, double* const p,
+__global__ void _update_velocity_v_by_pressure(int* const status, int* const valid, int* const pt, double* const p,
                                         double *v, const double dt)
 {
     // thread index
@@ -425,21 +465,19 @@ __global__ void _update_velocity_v_by_pressure(int* const status, int* const pt,
     if(y >= d_ny || x >= d_nx || y < 1)return;
     if(status[idx] == 0 && status[idx-d_nx] == 0)return;
 
-    //int pti = pt[idx];
-    //int ptj = pt[idx-d_nx];
-
-    double pidx = p[idx];// + (pti > 9 ? pti-8:0);
-    double pidx_1 = p[idx-d_nx];// + (ptj > 9 ? ptj-8:0);
+    double pidx = p[idx];// + ((double)pt[idx]/9.);
+    double pidx_1 = p[idx-d_nx];// + ((double)pt[idx-d_nx]/9.);
 
     // negative gradient
     const double gd = -dt/d_rho * (pidx-pidx_1)/d_dy;
 
     // update v
     v[idx] = v[idx] + gd;
+    valid[idx] = 1;
 }
 
 template<int block_size>
-__global__ void _update_velocity_u_by_pressure(int* const status, int* const pt, double* const p,
+__global__ void _update_velocity_u_by_pressure(int* const status, int* const valid, int* const pt, double* const p,
                                         double *u, const double dt)
 {
     // thread index
@@ -450,20 +488,17 @@ __global__ void _update_velocity_u_by_pressure(int* const status, int* const pt,
     if(y >= d_ny || x >= d_nx || x < 1)return;
     if(status[idx] == 0 && status[idx-1] == 0)return;
 
-
     const int uidx = idx + y;
 
-    //int pti = pt[idx];
-    //int ptj = pt[idx-1];
-
-    double pidx = p[idx];// + (pti > 9 ? pti-8:0);
-    double pidx_1 = p[idx-1];// + (ptj > 9 ? ptj-8:0);
+    double pidx = p[idx];// + ((double)pt[idx]/9.);
+    double pidx_1 = p[idx-1];// + ((double)pt[idx-1]/9.);
 
     // negative gradient
     const double gd = -dt/d_rho * (pidx-pidx_1)/d_dx;
     
     // update u
     u[uidx] = u[uidx] + gd;
+    valid[uidx] = 1;
 }
 
 template<int block_size>
@@ -517,6 +552,96 @@ __global__ void _clean_field(int* const status, double* const u, double* const v
             u[idx+y+1] = 0;
         if(_safe_get(status, x, y+1, d_nx, d_ny) == 0)
             v[idx+y] = 0;
+    }
+}
+
+template<int block_size>
+__global__ void _extrapolate_u(int* const nv, int* const v, double* const nu, double* const u)
+{
+    // thread index
+    const int y = block_size * blockIdx.y + threadIdx.y;
+    const int x = block_size * blockIdx.x + threadIdx.x;
+    const int idx = y * (d_nx+1) + x;
+
+    if(y >= d_ny-1 || y < 1 || x >= d_nx || x < 1)return;
+    if(v[idx] != 0)return;
+
+    double sum = 0;
+    int count = 0;
+    
+    if(v[idx+1] != 0)
+    {
+        sum += u[idx+1];
+        count++;
+    }
+
+    if(v[idx-1] != 0)
+    {
+        sum += u[idx-1];
+        count++;
+    }
+
+    if(v[idx+d_nx] != 0)
+    {
+        sum += u[idx+d_nx];
+        count++;
+    }
+
+    if(v[idx-d_nx] != 0)
+    {
+        sum += u[idx-d_nx];
+        count++;
+    }
+
+    if(count > 0)
+    {
+        nu[idx] = sum/(double)count;
+        nv[idx] = 1;
+    }
+}
+
+template<int block_size>
+__global__ void _extrapolate_v(int* const nv, int* const v, double* const nu, double* const u)
+{
+    // thread index
+    const int y = block_size * blockIdx.y + threadIdx.y;
+    const int x = block_size * blockIdx.x + threadIdx.x;
+    const int idx = y * d_nx + x;
+
+    if(y >= d_ny || y < 1 || x >= d_nx-1 || x < 1)return;
+    if(v[idx] != 0)return;
+
+    double sum = 0;
+    int count = 0;
+    
+    if(v[idx+1] != 0)
+    {
+        sum += u[idx+1];
+        count++;
+    }
+
+    if(v[idx-1] != 0)
+    {
+        sum += u[idx-1];
+        count++;
+    }
+
+    if(v[idx+d_nx] != 0)
+    {
+        sum += u[idx+d_nx];
+        count++;
+    }
+
+    if(v[idx-d_nx] != 0)
+    {
+        sum += u[idx-d_nx];
+        count++;
+    }
+
+    if(count > 0)
+    {
+        nu[idx] = sum/(double)count;
+        nv[idx] = 1;
     }
 }
 
@@ -585,7 +710,7 @@ void addForce()
     const dim3 thread( block_size, block_size, 1 );
 
     // vertical direction
-    _addforce<block_size><<<block, thread>>>(d_v, dt);
+    _addforce<block_size><<<block, thread>>>(d_st, d_v, dt);
 }
 
 template<int threads>
@@ -611,12 +736,23 @@ int int_reduce(int *d_array, unsigned int size)
     return sum;
 }
 
+void compute_SDF()
+{
+    error_check(cudaMemset(d_phi, 0, nx*ny*sizeof(double)));
+    const int sz = 32;
+    const dim3 block(nx/sz+1, ny/sz+1, 1);
+    const dim3 thread(sz, sz, 1);
+
+    _initialize<sz><<<block, thread>>>(d_phi, nx, ny, rad*3);
+
+    for(int i=0;i<num;++i)
+    {
+        _compute_SDF<sz><<<block, thread>>>(d_mx, d_my, i, d_phi);
+    }
+}
+
 void project(PCGsolver &solver)
 {
-    // compute distant function
-
-
-
     // counting neighbors
     error_check(cudaMemset(d_neig, 0, nx*ny*sizeof(int)));
 
@@ -757,9 +893,50 @@ void project(PCGsolver &solver)
     cudaFree(d_b);
 
     error_check(cudaMemset(d_p, 0, nx*ny*sizeof(double)));
+    error_check(cudaMemset(d_uv, 0, (nx+1)*ny*sizeof(int)));
+    error_check(cudaMemset(d_vv, 0, (ny+1)*nx*sizeof(int)));
+
     _update_pressure<sz><<<block, thread>>>(d_st, d_idxmap, d_p, d_x);
-    _update_velocity_u_by_pressure<sz><<<block, thread>>>(d_st, d_pt, d_p, d_u, dt);
-    _update_velocity_v_by_pressure<sz><<<block, thread>>>(d_st, d_pt, d_p, d_v, dt);
+    _update_velocity_u_by_pressure<sz><<<block, thread>>>(d_st, d_uv, d_pt, d_p, d_u, dt);
+    _update_velocity_v_by_pressure<sz><<<block, thread>>>(d_st, d_vv, d_pt, d_p, d_v, dt);
+}
+
+
+void extrapolate_u()
+{
+    const dim3 block(nx/block_size+1, ny/block_size+1, 1);
+    const dim3 thread(block_size, block_size, 1);
+
+    error_check(cudaMemcpy(d_buv, d_uv, (nx+1)*ny*sizeof(int), cudaMemcpyDeviceToDevice));
+    error_check(cudaMemcpy(d_bu, d_u, (nx+1)*ny*sizeof(double), cudaMemcpyDeviceToDevice));
+
+    _extrapolate_u<block_size><<<block, thread>>>(d_uv, d_buv, d_u, d_bu);
+
+}
+
+void extrapolate_v()
+{
+    const dim3 block(nx/block_size+1, ny/block_size+1, 1);
+    const dim3 thread(block_size, block_size, 1);
+
+    error_check(cudaMemcpy(d_bvv, d_vv, (ny+1)*nx*sizeof(int), cudaMemcpyDeviceToDevice));
+    error_check(cudaMemcpy(d_bv, d_v, (ny+1)*nx*sizeof(double), cudaMemcpyDeviceToDevice));
+
+    _extrapolate_v<block_size><<<block, thread>>>(d_vv, d_bvv, d_v, d_bv);
+}
+
+void extrapolate()
+{
+    for(int i=0;i<4;++i)
+    {
+        extrapolate_u();
+    }
+
+    for(int i=0;i<4;++i)
+    {
+        extrapolate_v();
+    }
+
 }
 
 void enforce_boundary()
@@ -806,6 +983,11 @@ void initialize_grid()
     error_check(cudaMalloc(&d_pt, nx*ny*sizeof(int)));
     error_check(cudaMalloc(&d_phi, nx*ny*sizeof(double)));
 
+    error_check(cudaMalloc(&d_uv, (nx+1)*ny*sizeof(int)));
+    error_check(cudaMalloc(&d_vv, (ny+1)*nx*sizeof(int)));
+    error_check(cudaMalloc(&d_buv, (nx+1)*ny*sizeof(int)));
+    error_check(cudaMalloc(&d_bvv, (ny+1)*nx*sizeof(int)));
+
     // create backup buffers
     error_check(cudaMalloc(&d_bu, (nx+1)*ny*sizeof(double)));
     error_check(cudaMalloc(&d_bv, (ny+1)*nx*sizeof(double)));
@@ -848,6 +1030,7 @@ void initialize_params()
     error_check(cudaMemcpyToSymbol(d_nu, &nu, sizeof(double), 0, cudaMemcpyHostToDevice));    
     error_check(cudaMemcpyToSymbol(d_rho, &rho, sizeof(double), 0, cudaMemcpyHostToDevice));    
     error_check(cudaMemcpyToSymbol(d_g, &g, sizeof(double), 0, cudaMemcpyHostToDevice));
+    error_check(cudaMemcpyToSymbol(d_rad, &rad, sizeof(double), 0, cudaMemcpyHostToDevice));
 }
 
 void get_result()
@@ -874,6 +1057,14 @@ void finalize_grid()
     cudaFree(d_v);
     cudaFree(d_p);
     cudaFree(d_st);
+    cudaFree(d_phi);
+
+    cudaFree(d_pt);
+
+    cudaFree(d_uv);
+    cudaFree(d_vv);
+    cudaFree(d_buv);
+    cudaFree(d_bvv);
 
     cudaFree(d_bu);
     cudaFree(d_bv);
@@ -971,18 +1162,14 @@ int main(int argc, char **argv)
             advect();
         // TODO: addForce
             addForce();
-        // TODO: advect
-            advect();
-        // TODO: diffuse
-
-        // TODO: enforce bounary
+        // TODO: enforce boundary
             enforce_boundary();
+        // TODO: extrapolate
+            extrapolate();
         // TODO: project
             project(p_solver);
         // TODO: enforce boundary
             enforce_boundary();
-        // TODO: clean field
-            clean_field();
         // TODO: advect markers
             advectMarkers();
 

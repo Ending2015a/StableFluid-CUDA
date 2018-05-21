@@ -320,8 +320,8 @@ public:
                 double fv = (v[(i+1)*nx+j] + v[i*nx+j])/2.;
                 double m = sqrt(fu*fu+fv*fv);
 
-                fu = fu/m * ddx/4.;
-                fv = fv/m * ddy/4.;
+                fu = fu/m * ddx/5.;
+                fv = fv/m * ddy/5.;
 
                 int off_x = pivot_x + ddx * (j+1);
                 int off_y = pivot_y + ddy * (i+1);
