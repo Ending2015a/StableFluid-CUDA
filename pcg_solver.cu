@@ -48,6 +48,7 @@ void PCGsolver::solve_gpumem(int N, int nz,
     // check size
     this->N = N;
     this->nonzero = nz;
+    free_memory();
     check_and_resize();
 
     // analyze matrix A (This will be used in incomplete-cholesky factorization)
@@ -125,8 +126,6 @@ void PCGsolver::solve_gpumem(int N, int nz,
 
     std::cout << "[PCGsolver] solved in " << k << " iterations, final norm(r) = " 
               << std::scientific << rTr << std::endl;
-    d_N = 0;
-    d_nz= 0;
 }
 
 void PCGsolver::convert_coo2csr(const int N, const int nonzero, const int* cooRowIdx, int *csrRowIdx)
@@ -154,26 +153,15 @@ void PCGsolver::free_memory()
 
 void PCGsolver::check_and_resize()
 {
-    if(N > d_N)
-    {
-        free_memory();
-        error_check(cudaMalloc(&d_x, N * sizeof(double)));
-        error_check(cudaMalloc(&d_y, N * sizeof(double)));
-        error_check(cudaMalloc(&d_z, N * sizeof(double)));
-        error_check(cudaMalloc(&d_r, N * sizeof(double)));
-        error_check(cudaMalloc(&d_rt, N * sizeof(double)));
-        error_check(cudaMalloc(&d_xt, N * sizeof(double)));
-        error_check(cudaMalloc(&d_q, N * sizeof(double)));
-        error_check(cudaMalloc(&d_p, N * sizeof(double)));
-
-        d_N = N;
-    }
-
-    if(nonzero > d_nz)
-    {
-        cudaFree(d_ic);
-        error_check(cudaMalloc(&d_ic, nonzero * sizeof(double)));
-
-        d_nz = nonzero;
-    }
+    error_check(cudaMalloc(&d_x, N * sizeof(double)));
+    error_check(cudaMalloc(&d_y, N * sizeof(double)));
+    error_check(cudaMalloc(&d_z, N * sizeof(double)));
+    error_check(cudaMalloc(&d_r, N * sizeof(double)));
+    error_check(cudaMalloc(&d_rt, N * sizeof(double)));
+    error_check(cudaMalloc(&d_xt, N * sizeof(double)));
+    error_check(cudaMalloc(&d_q, N * sizeof(double)));
+    error_check(cudaMalloc(&d_p, N * sizeof(double)));
+    d_N = N;
+    error_check(cudaMalloc(&d_ic, nonzero * sizeof(double)));
+    d_nz = nonzero;
 }

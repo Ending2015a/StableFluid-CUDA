@@ -312,6 +312,7 @@ public:
         if(u.size() == 0 || v.size() == 0)
             return;
 
+        double magni = 0;
         for(int i=0;i<ny;++i)
         {
             for(int j=0;j<nx;++j)
@@ -320,17 +321,42 @@ public:
                 double fv = (v[(i+1)*nx+j] + v[i*nx+j])/2.;
                 double m = sqrt(fu*fu+fv*fv);
 
-                fu = fu/m * ddx/5.;
-                fv = fv/m * ddy/5.;
+                magni = magni < m ? m:magni;
+            }
+        }
+
+        for(int i=0;i<ny;++i)
+        {
+            for(int j=0;j<nx;++j)
+            {
+                double fu = (u[i*(nx+1) + j+1] + u[i*(nx+1) + j])/2.;
+                double fv = (v[(i+1)*nx+j] + v[i*nx+j])/2.;
+                //double m = sqrt(fu*fu+fv*fv);
+
+                fu = fu/magni * ddx/5.;
+                fv = fv/magni * ddy/5.;
 
                 int off_x = pivot_x + ddx * (j+1);
                 int off_y = pivot_y + ddy * (i+1);
 
-                int x1 = off_x + ddx/2. - fu;
-                int y1 = off_y + ddy/2. - fv;
-                int x2 = off_x + ddx/2. + fu;
-                int y2 = off_y + ddy/2. + fv;
+                double x1 = off_x + ddx/2. - fu;
+                double y1 = off_y + ddy/2. - fv;
+                double x2 = off_x + ddx/2. + fu;
+                double y2 = off_y + ddy/2. + fv;
+
                 canvas.drawLine(x1, y1, x2, y2, black);
+                
+                {
+                double ax = ((x1-x2) * cos(0.52359) - (y1-y2) * sin(0.52359))/2.; 
+                double ay = ((x1-x2) * sin(0.52359) + (y1-y2) * cos(0.52359))/2.;
+                canvas.drawLine(ax+x2, ay+y2, x2, y2, black);
+                }
+                {
+                double ax = ((x1-x2) * cos(-0.52359) - (y1-y2) * sin(-0.52359))/2.; 
+                double ay = ((x1-x2) * sin(-0.52359) + (y1-y2) * cos(-0.52359))/2.;
+                canvas.drawLine(ax+x2, ay+y2, x2, y2, black);
+                }
+
             }
         }
     }

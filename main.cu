@@ -81,6 +81,7 @@ int *idxmap;
 
 double *u;
 double *v;
+double *pressure;
 
 // ===== kernel =====
 
@@ -91,6 +92,22 @@ __device__ inline T _safe_get(const T* const field, const int x, const int y,
 {
     if(x < 0 || x >= lim_x || y < 0 || y >= lim_y)
         return 0;
+    return field[y*lim_x + x];
+}
+
+template<typename T>
+__device__ inline T _safe_get_mr(const T* const field, int x, int y,
+                                const int lim_x, const int lim_y)
+{
+    if(x < 0)
+        x = 0;
+    else if(x >= lim_x)
+        x = lim_x-1;
+    if(y < 0)
+        y = 0;
+    else if(y >= lim_y)
+        y = lim_y-1;
+
     return field[y*lim_x + x];
 }
 
@@ -138,10 +155,10 @@ __device__ inline double _interpolate(const double* const field, const double x,
     int y1 = y0+1;
 
     // interp x
-    double fy1 = (1.-fcx) * _safe_get(field, x0, y0, lim_x, lim_y) 
-                    + fcx * _safe_get(field, x1, y0, lim_x, lim_y);
-    double fy2 = (1.-fcx) * _safe_get(field, x0, y1, lim_x, lim_y)
-                    + fcx * _safe_get(field, x1, y1, lim_x, lim_y);
+    double fy1 = (1.-fcx) * _safe_get_mr(field, x0, y0, lim_x, lim_y) 
+                    + fcx * _safe_get_mr(field, x1, y0, lim_x, lim_y);
+    double fy2 = (1.-fcx) * _safe_get_mr(field, x0, y1, lim_x, lim_y)
+                    + fcx * _safe_get_mr(field, x1, y1, lim_x, lim_y);
     // interp y
     double f = (1.-fcy) * fy1 + fcy * fy2;
 
@@ -423,10 +440,10 @@ __global__ void _construct_right_hand_side(int* const status, int* const idxmap,
     const int pos = idxmap[idx];
 
     double d = 0;
-    d += (-u[uidx+1]+u[uidx])/d_dx;
-    d += (-v[idx+d_nx]+v[idx])/d_dy;
+    d += (u[uidx+1]-u[uidx])/d_dx;
+    d += (v[idx+d_nx]-v[idx])/d_dy;
 
-    b[pos] = d;
+    b[pos] = -d;
 }
 
 template<int block_size>
@@ -465,11 +482,11 @@ __global__ void _update_velocity_v_by_pressure(int* const status, int* const val
     if(y >= d_ny || x >= d_nx || y < 1)return;
     if(status[idx] == 0 && status[idx-d_nx] == 0)return;
 
-    double pidx = p[idx];// + ((double)pt[idx]/9.);
-    double pidx_1 = p[idx-d_nx];// + ((double)pt[idx-d_nx]/9.);
+    double pidx = p[idx];
+    double pidx_1 = p[idx-d_nx];
 
     // negative gradient
-    const double gd = -dt/d_rho * (pidx-pidx_1)/d_dy;
+    const double gd = -dt/1000. * (pidx-pidx_1)/d_dy;
 
     // update v
     v[idx] = v[idx] + gd;
@@ -494,7 +511,7 @@ __global__ void _update_velocity_u_by_pressure(int* const status, int* const val
     double pidx_1 = p[idx-1];// + ((double)pt[idx-1]/9.);
 
     // negative gradient
-    const double gd = -dt/d_rho * (pidx-pidx_1)/d_dx;
+    const double gd = -dt/1000. * (pidx-pidx_1)/d_dx;
     
     // update u
     u[uidx] = u[uidx] + gd;
@@ -819,8 +836,8 @@ void project(PCGsolver &solver)
     double *b = new double[N]{};
     double *xp = new double[N]{};
 
-    std::cout << "N: " << N << std::endl;
-    std::cout << "nz: " << nonzero << std::endl;
+    //std::cout << "N: " << N << std::endl;
+    //std::cout << "nz: " << nonzero << std::endl;
 
     error_check(cudaMemcpy(A, d_A, nonzero*sizeof(double), cudaMemcpyDeviceToHost));
     error_check(cudaMemcpy(cooRowIdx, d_cooRowIdx, (nonzero)*sizeof(int), cudaMemcpyDeviceToHost));
@@ -849,7 +866,7 @@ void project(PCGsolver &solver)
         fout.write((char*)&b[i], sizeof(double));
     }
     fout.close();
-
+/*
     std::cout << "A: ";
     for(int i=0;i<nonzero;++i)
         std::cout << A[i] << ", ";
@@ -874,7 +891,7 @@ void project(PCGsolver &solver)
     for(int i=0;i<N;++i)
         std::cout << xp[i] << ", ";
     std::cout << std::endl;
-
+*/
 
     delete[] A;
     delete[] cooRowIdx;
@@ -1002,6 +1019,7 @@ void initialize_grid()
 
     u = new double[(nx+1)*ny]{};
     v = new double[nx*(ny+1)]{};
+    pressure = new double[nx*ny]{};
 
     // == INITIALIZE ==
 
@@ -1039,6 +1057,9 @@ void get_result()
     error_check(cudaMemcpy(markers_y, d_my, num*sizeof(double), cudaMemcpyDeviceToHost));
     error_check(cudaMemcpy(u, d_u, (nx+1)*ny*sizeof(double), cudaMemcpyDeviceToHost));
     error_check(cudaMemcpy(v, d_v, ny*(nx+1)*sizeof(double), cudaMemcpyDeviceToHost));
+
+    error_check(cudaMemcpy(pressure, d_p, nx*ny*sizeof(double), cudaMemcpyDeviceToHost));
+
 }
 
 void finalize_grid()
@@ -1076,6 +1097,7 @@ void finalize_grid()
 
     delete[] u;
     delete[] v;
+    delete[] pressure;
 }
 
 
@@ -1153,6 +1175,8 @@ int main(int argc, char **argv)
     // TODO: create PCGsolver
     PCGsolver p_solver(max_iter, tol);
 
+    char filename[30];
+
     for(int i=0;i<steps;++i)
     {
         cur_step = i;
@@ -1164,12 +1188,29 @@ int main(int argc, char **argv)
             addForce();
         // TODO: enforce boundary
             enforce_boundary();
-        // TODO: extrapolate
-            extrapolate();
+
+            get_result();
+            sprintf(filename, "%s_force_%03i.sr", argv[2], i);
+            write(filename);
+            std::cout << std::endl << "step: " << i << std::endl;
+            std::cout << "u = " << u[20] << ", " << u[21] << std::endl;
+            std::cout << "v = " << v[20] << ", " << v[21] << std::endl;
+
         // TODO: project
             project(p_solver);
+
+        // TODO: clean field
+            clean_field();
+
+            get_result();
+            sprintf(filename, "%s_proj_%03i.sr", argv[2], i);
+            write(filename);
+            std::cout << "p = " << pressure[20] << std::endl;
+
+        // TODO: extrapolate
+            extrapolate();
         // TODO: enforce boundary
-            enforce_boundary();
+            //enforce_boundary();
         // TODO: advect markers
             advectMarkers();
 
@@ -1177,7 +1218,7 @@ int main(int argc, char **argv)
             get_result();
 
             char filename[30];
-            sprintf(filename, "%s_%03i.sr", argv[2], i);
+            sprintf(filename, "%s_all_%03i.sr", argv[2], i);
             write(filename);
 
     }

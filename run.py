@@ -10,7 +10,7 @@ dt = '0.03'
 nu = '1'
 rho = '1000'
 max_iter = '1000'
-tol = '1e-6'
+tol = '1e-12'
 
 width = '1280'
 height = '720'
