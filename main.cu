@@ -25,6 +25,7 @@ double rho;
 double rad = 0.08;
 const double g = 9.81;
 const int block_size = 16;
+const int exp_iter = 40;
 
 int max_iter;
 double tol;
@@ -827,80 +828,6 @@ void project(PCGsolver &solver)
     // get answer
     double *d_x = solver.get_device_x();
 
-    // debug.....
-    double *A = new double[nonzero]{};
-    int *cooRowIdx = new int[nonzero]{};
-    int *colIdx = new int[nonzero]{};
-    double *b = new double[N]{};
-    double *xp = new double[N]{};
-
-    //std::cout << "N: " << N << std::endl;
-    //std::cout << "nz: " << nonzero << std::endl;
-
-    error_check(cudaMemcpy(A, d_A, nonzero*sizeof(double), cudaMemcpyDeviceToHost));
-    error_check(cudaMemcpy(cooRowIdx, d_cooRowIdx, (nonzero)*sizeof(int), cudaMemcpyDeviceToHost));
-    error_check(cudaMemcpy(colIdx, d_colIdx, (nonzero)*sizeof(int), cudaMemcpyDeviceToHost));
-    error_check(cudaMemcpy(b, d_b, N*sizeof(double), cudaMemcpyDeviceToHost));
-    error_check(cudaMemcpy(xp, d_x, N*sizeof(double), cudaMemcpyDeviceToHost));
-
-
-    char name[30];
-    sprintf(name, "mat/%s_%03d.in", "step", cur_step);
-
-    std::ofstream fout(name, std::ios::binary);
-
-    fout.write((char*)&N, sizeof(int));
-    fout.write((char*)&nonzero, sizeof(int));
-
-    for(int i=0;i<nonzero;++i)
-    {
-        fout.write((char*)&colIdx[i], sizeof(int));
-        fout.write((char*)&cooRowIdx[i], sizeof(int));
-        fout.write((char*)&A[i], sizeof(double));
-    }
-
-    for(int i=0;i<N;++i)
-    {
-        fout.write((char*)&b[i], sizeof(double));
-    }
-    fout.close();
-/*
-    std::cout << "A: ";
-    for(int i=0;i<nonzero;++i)
-        std::cout << A[i] << ", ";
-    std::cout << std::endl;
-    
-    std::cout << "row: ";
-    for(int i=0;i<nonzero;++i)
-        std::cout << cooRowIdx[i] << ", ";
-    std::cout << std::endl;
-
-    std::cout << "col: ";
-    for(int i=0;i<nonzero;++i)
-        std::cout << colIdx[i] << ", ";
-    std::cout << std::endl;
- 
-    std::cout << "b: ";
-    for(int i=0;i<N;++i)
-        std::cout << b[i] << ", ";
-    std::cout << std::endl;
-    
-    std::cout << "xp: ";
-    for(int i=0;i<N;++i)
-        std::cout << xp[i] << ", ";
-    std::cout << std::endl;
-*/
-
-    delete[] A;
-    delete[] cooRowIdx;
-    delete[] colIdx;
-    delete[] b;
-    delete[] xp;
-
-    //..... debug
-
-
-
     cudaFree(d_A);
     cudaFree(d_cooRowIdx);
     cudaFree(d_rowIdx);
@@ -942,12 +869,12 @@ void extrapolate_v()
 
 void extrapolate()
 {
-    for(int i=0;i<4;++i)
+    for(int i=0;i<exp_iter;++i)
     {
         extrapolate_u();
     }
 
-    for(int i=0;i<4;++i)
+    for(int i=0;i<exp_iter;++i)
     {
         extrapolate_v();
     }
@@ -1172,8 +1099,6 @@ int main(int argc, char **argv)
 
     // TODO: create PCGsolver
     PCGsolver p_solver(max_iter, tol);
-
-    char filename[30];
 
     for(int i=0;i<steps;++i)
     {

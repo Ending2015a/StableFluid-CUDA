@@ -1,12 +1,10 @@
 nx=500
 ny=500
-dx=0.2
-dy=0.2
+dx=0.01
+dy=0.01
 rate=3
-j1=350
-i1=350
-j2=480
-i2=480
+array=(350  350 490  490\
+    10 350 150 490)
 output=map.sr
 
-./main $nx $ny $dx $dy $j1 $i1 $j2 $i2 $rate $output
+./main $nx $ny $dx $dy $rate $output ${array[@]}

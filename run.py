@@ -5,7 +5,8 @@ input = 'map.sr'
 folder = 'output'
 output = 'result'
 png = 'result.png'
-steps = '500'
+avi = 'result_3'
+steps = '1000'
 dt = '0.03'
 nu = '1'
 rho = '1000'
@@ -50,9 +51,10 @@ video = None
 
 for p in pngs:
     f = cv2.imread(p)
+    f = cv2.resize(f, (3840, 2160))
     if video == None:
         h, w, l = f.shape
-        video = cv2.VideoWriter('{}.avi'.format(output), cv2.VideoWriter_fourcc(*'XVID'), 30, (w, h))
+        video = cv2.VideoWriter('{}.avi'.format(avi), cv2.VideoWriter_fourcc(*'XVID'), 30, (w, h))
 
     video.write(f)
 
