@@ -24,7 +24,7 @@ os.system("rm ./{}/*".format(folder))
 print("simulating ...")
 
 output_path = os.path.join(folder, output)
-os.system("./main {} {} {} {} {} {} {} {} > test.log".format(input, output_path, steps, dt, nu, rho, max_iter, tol))
+os.system("./main {} {} {} {} {} {} {} {}".format(input, output_path, steps, dt, nu, rho, max_iter, tol))
 
 
 ###############
@@ -34,9 +34,10 @@ print("rendering ...")
 mapsr = [ os.path.join(folder, x) for x in os.listdir(folder) if x.endswith('.sr')]
 
 mapsr = sorted(mapsr)
-for sr in mapsr:
-    os.system('./renderer/main {} {} {} {} 1'.format(sr, sr.replace('.sr', '.png'), width, height))
-
+for idx, sr in enumerate(mapsr):
+    print('Rendering {} frame'.format(idx))
+    os.system('./renderer/main {} {} {} {}'.format(sr, sr.replace('.sr', '.png'), width, height))
+    
 
 ###########
 
@@ -49,13 +50,17 @@ pngs = sorted(pngs)
 
 video = None
 
-for p in pngs:
+for idx, p in enumerate(pngs):
+    print('Generating {} frame'.format(idx))
     f = cv2.imread(p)
     f = cv2.resize(f, (3840, 2160))
     if video == None:
         h, w, l = f.shape
         video = cv2.VideoWriter('{}.avi'.format(avi), cv2.VideoWriter_fourcc(*'XVID'), 30, (w, h))
 
+    if idx == 0:
+        for i in range(40):
+            video.write(f)
     video.write(f)
 
 video.release()

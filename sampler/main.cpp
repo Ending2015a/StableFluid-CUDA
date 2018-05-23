@@ -7,6 +7,8 @@
 
 #include "../lodepng/lodepng.h"
 
+#define max(x, y) ((x)>(y)?(x):(y))
+
 struct vec2
 {
     double x, y;
@@ -32,53 +34,69 @@ void hash22(double x, double y, double &ox, double &oy)
 }
 
 
-void decode(const char*filename, unsigned char *image, unsigned int width, unsigned int height)
+void decode(const char* filename, unsigned char **image, unsigned int *width, unsigned int *height)
 {
-    unsigned int error = lodepng_decode32_file(&image, &width, &height, filename);
+    unsigned int error = lodepng_decode32_file(image, width, height, filename);
     if(error)
         printf("error %u: %s\n", error, lodepng_error_text(error));
 }
 
-// ./exe nx ny dx dy rate output j1 i1 j2 i2 ...
+// ./exe input dx dy rate output
 int main(int argc, char **argv)
 {
-    assert(argc > 11);
-    std::ofstream fout(argv[6], std::ios::binary);
+    assert(argc == 6);
+    std::ofstream fout(argv[5], std::ios::binary);
 
-    int nx = atoi(argv[1]);
-    int ny = atoi(argv[2]);
-    double dx = atof(argv[3]);
-    double dy = atof(argv[4]);
-    double rate = atof(argv[5]);
+    unsigned char* raw_image;
+    unsigned int nx;
+    unsigned int ny;
+
+    decode(argv[1], &raw_image, &nx, &ny);
+
+    double dx = atof(argv[2]);
+    double dy = atof(argv[3]);
+    double rate = atof(argv[4]);
     
     std::vector<vec2> point_list;
-    
-    for(int i=7;i < argc; i+=4)
+
+    unsigned char **image;
+    image = new unsigned char*[ny]{};
+
+    for(int i=0;i<ny;++i)
     {
-        int j1 = atoi(argv[i]);
-        int i1 = atoi(argv[i+1]);
-        int j2 = atoi(argv[i+2]);
-        int i2 = atoi(argv[i+3]);
+        image[i] = raw_image + i * nx * 4;
+    }
 
-        double rate_x = (double)abs(j1-j2)*rate;
-        double rate_y = (double)abs(i1-i2)*rate;
-
-        for(double rx = 0.; rx < rate_x;rx += 1.)
+    for(int i=0;i<ny;++i)
+    {
+        for(int j=0;j<nx;++j)
         {
-            for(double ry = 0.; ry < rate_y; ry += 1.)
+            int mx = max((int)(255-image[i][j*4]), (int)(255-image[i][j*4+1]));
+            mx = max(mx, (int)(255-image[i][j*4+2]));
+            
+            if(mx > 20)  // sample !
             {
-                double ox, oy;
-                hash22(rx, ry, ox, oy);
-                double px = j1 + (rx + ox)/rate_x * (j2-j1);
-                double py = i1 + (ry + oy)/rate_y * (i2-i1);
+                int j1 = j;
+                int i1 = ny - i;
 
-                point_list.push_back(vec2({px*dx, py*dy}));
+                for(double rx = 0.; rx < rate; rx += 1.)
+                {
+                    for(double ry = 0.; ry < rate; ry += 1.)
+                    {
+                        double ox, oy;
+                        hash22(rx, ry, ox, oy);
+                        double px = j1 + (rx+ox)/rate;
+                        double py = i1 + (ry+oy)/rate;
+
+                        point_list.push_back(vec2({px*dx, py*dy}));
+                    }
+                }
             }
         }
     }
-
+    
     int num = point_list.size();
-    std::cout << "done! " << num << "samples" << std::endl;
+    std::cout << "done! [" << num << "] samples" << std::endl;
     
     fout.write((char*)&nx, sizeof(int));
     fout.write((char*)&ny, sizeof(int));
@@ -93,6 +111,9 @@ int main(int argc, char **argv)
     }
 
     fout.close();
+
+    free(raw_image);
+    delete[] image;
 
     return 0;
 }
