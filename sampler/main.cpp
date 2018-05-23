@@ -5,6 +5,8 @@
 #include <cassert>
 #include <cmath>
 
+#include "../lodepng/lodepng.h"
+
 struct vec2
 {
     double x, y;
@@ -27,6 +29,14 @@ void hash22(double x, double y, double &ox, double &oy)
     double py = x*184.64651 + y*517.54651+px;
     ox = fabs(fract(sin(px+151.1564)*65.1598465))*0.8+0.1;
     oy = fabs(fract(sin(py+248.4815)*65.7298465))*0.8+0.1;
+}
+
+
+void decode(const char*filename, unsigned char *image, unsigned int width, unsigned int height)
+{
+    unsigned int error = lodepng_decode32_file(&image, &width, &height, filename);
+    if(error)
+        printf("error %u: %s\n", error, lodepng_error_text(error));
 }
 
 // ./exe nx ny dx dy rate output j1 i1 j2 i2 ...

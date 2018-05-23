@@ -7,7 +7,7 @@
 #include <cstring>
 
 
-#include "lodepng/lodepng.h"
+#include "../lodepng/lodepng.h"
 
 
 template<typename T>

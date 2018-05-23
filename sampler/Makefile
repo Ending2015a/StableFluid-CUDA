@@ -2,13 +2,13 @@ CXX = g++
 LDFLAGS = -lm
 CXXFLAGS = -O3 -std=c++11
 TARGETS = main
-
+SOURCES = ../lodepng/lodepng.cpp
 
 .PHONY: all
 all: $(TARGETS)
 
 %: %.cpp
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< $(SOURCES)
 
 .PHONY: clean
 clean:

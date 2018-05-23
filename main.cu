@@ -25,7 +25,7 @@ double rho;
 double rad = 0.08;
 const double g = 9.81;
 const int block_size = 16;
-const int exp_iter = 40;
+const int exp_iter = 20;
 
 int max_iter;
 double tol;
@@ -52,8 +52,6 @@ double *d_u;  // horizontal component of velocity
 double *d_v;  // vertical component of velocity
 double *d_p;  // pressure
 int *d_st;  // status
-int *d_pt;
-double *d_phi;
 
 int *d_uv;  // valid u
 int *d_vv;  // valid v
@@ -225,7 +223,7 @@ __global__ void _initialize(double* const grid, const int lim_x, const int lim_y
 
 // Update Grid Status (kernel)
 template<int block_size>
-__global__ void _updatestatus(const int num, const double* const x, const double* const y, int* const st, int* const pt)
+__global__ void _updatestatus(const int num, const double* const x, const double* const y, int* const st)
 {
     // thread index
     const int idx = block_size * blockIdx.x + threadIdx.x;
@@ -239,7 +237,6 @@ __global__ void _updatestatus(const int num, const double* const x, const double
 
     const int v = 1;
     _safe_set(st, X, Y, d_nx, d_ny, v);
-    _safe_add(pt, X, Y, d_nx, d_ny, v);
 }
 
 // Advect Velocity (kernel)
@@ -263,7 +260,7 @@ __global__ void _advect(double* const u, const double* const bu,
     double YP;
 
     // trace backwards
-    _RK2(field_u, field_v, -dt, XG, YG, &XP, &YP, d_nx+1, d_ny, d_nx, d_ny+1);
+    _RK4(field_u, field_v, -dt, XG, YG, &XP, &YP, d_nx+1, d_ny, d_nx, d_ny+1);
 
     // update 
     u[idx] = _interpolate(bu, XP-off_x*d_dx, YP-off_y*d_dy, lim_x, lim_y);
@@ -472,7 +469,7 @@ __global__ void _update_pressure(int* const status, int* const idxmap,
 }
 
 template<int block_size>
-__global__ void _update_velocity_v_by_pressure(int* const status, int* const valid, int* const pt, double* const p,
+__global__ void _update_velocity_v_by_pressure(int* const status, int* const valid, double* const p,
                                         double *v, const double dt)
 {
     // thread index
@@ -495,7 +492,7 @@ __global__ void _update_velocity_v_by_pressure(int* const status, int* const val
 }
 
 template<int block_size>
-__global__ void _update_velocity_u_by_pressure(int* const status, int* const valid, int* const pt, double* const p,
+__global__ void _update_velocity_u_by_pressure(int* const status, int* const valid, double* const p,
                                         double *u, const double dt)
 {
     // thread index
@@ -508,8 +505,8 @@ __global__ void _update_velocity_u_by_pressure(int* const status, int* const val
 
     const int uidx = idx + y;
 
-    double pidx = p[idx];// + ((double)pt[idx]/9.);
-    double pidx_1 = p[idx-1];// + ((double)pt[idx-1]/9.);
+    double pidx = p[idx];
+    double pidx_1 = p[idx-1];
 
     // negative gradient
     const double gd = -dt/d_rho * (pidx-pidx_1)/d_dx;
@@ -683,7 +680,7 @@ __global__ void _advectmarkers(const int num, double* const x, double* const y,
     double YP1;
 
     // trace forwards
-    _RK2(field_u, field_v, dt, XP, YP, &XP1, &YP1, d_nx+1, d_ny, d_nx, d_ny+1);
+    _RK4(field_u, field_v, dt, XP, YP, &XP1, &YP1, d_nx+1, d_ny, d_nx, d_ny+1);
 
     // clamp into boundaries & set new position
     XP1 = XP1 < 0. ? 0.: XP1 > lim_x ? lim_x : XP1;
@@ -698,12 +695,11 @@ __global__ void _advectmarkers(const int num, double* const x, double* const y,
 void updateStatus()
 {
     error_check(cudaMemset(d_st, 0, nx*ny*sizeof(int)));
-    error_check(cudaMemset(d_pt, 0, nx*ny*sizeof(int)));
 
     const dim3 block( num/block_size+1, 1, 1 );
     const dim3 thread( block_size, 1, 1 );
 
-    _updatestatus<block_size><<<block, thread>>>(num, d_mx, d_my, d_st, d_pt);
+    _updatestatus<block_size><<<block, thread>>>(num, d_mx, d_my, d_st);
 }
 
 void advect()
@@ -752,21 +748,6 @@ int int_reduce(int *d_array, unsigned int size)
         sum += rbuf[i];
     
     return sum;
-}
-
-void compute_SDF()
-{
-    error_check(cudaMemset(d_phi, 0, nx*ny*sizeof(double)));
-    const int sz = 32;
-    const dim3 block(nx/sz+1, ny/sz+1, 1);
-    const dim3 thread(sz, sz, 1);
-
-    _initialize<sz><<<block, thread>>>(d_phi, nx, ny, rad*3);
-
-    for(int i=0;i<num;++i)
-    {
-        _compute_SDF<sz><<<block, thread>>>(d_mx, d_my, i, d_phi);
-    }
 }
 
 void project(PCGsolver &solver)
@@ -839,8 +820,8 @@ void project(PCGsolver &solver)
     error_check(cudaMemset(d_vv, 0, (ny+1)*nx*sizeof(int)));
 
     _update_pressure<sz><<<block, thread>>>(d_st, d_idxmap, d_p, d_x);
-    _update_velocity_u_by_pressure<sz><<<block, thread>>>(d_st, d_uv, d_pt, d_p, d_u, dt);
-    _update_velocity_v_by_pressure<sz><<<block, thread>>>(d_st, d_vv, d_pt, d_p, d_v, dt);
+    _update_velocity_u_by_pressure<sz><<<block, thread>>>(d_st, d_uv, d_p, d_u, dt);
+    _update_velocity_v_by_pressure<sz><<<block, thread>>>(d_st, d_vv, d_p, d_v, dt);
 }
 
 
@@ -922,8 +903,6 @@ void initialize_grid()
     error_check(cudaMalloc(&d_v, (ny+1)*nx*sizeof(double)));
     error_check(cudaMalloc(&d_p, nx*ny*sizeof(double)));
     error_check(cudaMalloc(&d_st, nx*ny*sizeof(int)));
-    error_check(cudaMalloc(&d_pt, nx*ny*sizeof(int)));
-    error_check(cudaMalloc(&d_phi, nx*ny*sizeof(double)));
 
     error_check(cudaMalloc(&d_uv, (nx+1)*ny*sizeof(int)));
     error_check(cudaMalloc(&d_vv, (ny+1)*nx*sizeof(int)));
@@ -1003,9 +982,6 @@ void finalize_grid()
     cudaFree(d_v);
     cudaFree(d_p);
     cudaFree(d_st);
-    cudaFree(d_phi);
-
-    cudaFree(d_pt);
 
     cudaFree(d_uv);
     cudaFree(d_vv);
