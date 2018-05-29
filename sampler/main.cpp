@@ -84,7 +84,7 @@ int main(int argc, char **argv)
                     for(double ry = 0.; ry < rate; ry += 1.)
                     {
                         double ox, oy;
-                        hash22(rx, ry, ox, oy);
+                        hash22(rx/rate+(double)j1, ry/rate+(double)i1, ox, oy);
                         double px = j1 + (rx+ox)/rate;
                         double py = i1 + (ry+oy)/rate;
 

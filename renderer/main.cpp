@@ -406,7 +406,7 @@ int main(int argc, char **argv)
         particles.push_back({x, y});
     }
 
-    bool field = (argc == 6);
+    bool field = (argc == 6) && (atoi(argv[5])==1);
 
     std::vector<double> field_u;
     std::vector<double> field_v;

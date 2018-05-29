@@ -11,10 +11,16 @@ dt = '0.03'
 nu = '1'
 rho = '1000'
 max_iter = '1000'
-tol = '1e-12'
+tol = '1e-7'
 
 width = '7680'
 height = '4320'
+
+#width = 1920
+#height = 1080
+
+resize_width = 1920
+resize_height = 1080
 
 os.system("rm ./{}/*".format(folder))
 
@@ -24,7 +30,7 @@ os.system("rm ./{}/*".format(folder))
 print("simulating ...")
 
 output_path = os.path.join(folder, output)
-os.system("./main {} {} {} {} {} {} {} {}".format(input, output_path, steps, dt, nu, rho, max_iter, tol))
+os.system("time ./main {} {} {} {} {} {} {} {}".format(input, output_path, steps, dt, nu, rho, max_iter, tol))
 
 
 ###############

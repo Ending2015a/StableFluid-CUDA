@@ -279,7 +279,6 @@ __global__ void _addforce(int* const status, double* const v, const double dt)
     // out of boundaries
     if(y >= d_ny+1 || x >= d_nx)return;
 
-    if(status[idx] == 0)return;
 
     // add gravity
     v[idx] = v[idx] - dt * d_g;
@@ -1073,6 +1072,12 @@ int main(int argc, char **argv)
     initialize_grid();
     initialize_params();
 
+    get_result();
+    char fff[30];
+    sprintf(fff, "%s_all_000.sr", argv[2]);
+    write(fff);
+    
+
     // TODO: create PCGsolver
     PCGsolver p_solver(max_iter, tol);
 
@@ -1099,7 +1104,7 @@ int main(int argc, char **argv)
             get_result();
 
             char filename[30];
-            sprintf(filename, "%s_all_%03i.sr", argv[2], i);
+            sprintf(filename, "%s_all_%03i.sr", argv[2], i+1);
             write(filename);
 
     }
