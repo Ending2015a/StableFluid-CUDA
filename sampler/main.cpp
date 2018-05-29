@@ -77,7 +77,7 @@ int main(int argc, char **argv)
             if(mx > 20)  // sample !
             {
                 int j1 = j;
-                int i1 = ny - i;
+                int i1 = ny - i-1;
 
                 for(double rx = 0.; rx < rate; rx += 1.)
                 {

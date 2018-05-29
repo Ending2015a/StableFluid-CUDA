@@ -1,11 +1,15 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <random>
+#include <algorithm>
+#include <string>
 
 #include <cmath>
 #include <cassert>
 #include <cstring>
-
+#include <ctime>
+#include <cstdlib>
 
 #include "../lodepng/lodepng.h"
 
@@ -115,6 +119,7 @@ public:
     }
 };
 
+
 // ===== Canvas =====
 class Canvas
 {
@@ -182,16 +187,416 @@ public:
 };
 
 
+
+// ===== Themes =====
+class Theme
+{
+public:
+    virtual void render(Canvas &canvas, const char *filename) = 0;
+    virtual void initialize() = 0;
+    virtual void plot_arrow(double u, double v, 
+                            double off_x, double off_y, 
+                            double len_x, double len_y, 
+                            double magni,
+                            double angle,
+                            Canvas &canvas) = 0;
+    virtual void plot_boundary(double x1, double y1, 
+                            double x2, double y2,
+                            Canvas &canvas) = 0;
+    virtual void plot_water(double x1, double y1,
+                            double x2, double y2,
+                            Canvas &canvas) = 0;
+    virtual void plot_air(double x1, double y1,
+                            double x2, double y2,
+                            Canvas &canvas) = 0;
+    virtual void plot_marker(double x1, double y1,
+                            Canvas &canvas) = 0;
+    virtual void plot_background(Canvas &canvas) = 0;
+    virtual Color get_color_palette(double t) = 0;
+};
+
+class Normal : public Theme
+{
+public:
+    int marker_size;
+    Color black;
+    Color white;
+    Color gray;
+    Color water;
+    Color marker;
+    Color background;
+
+    virtual void render(Canvas &canvas, const char *filename) override
+    {
+        Image& image = canvas.image;
+        image.save(filename);
+    }
+
+    virtual void initialize() override
+    {
+        black = Color({0., 0., 0., 1.});
+        white = Color({1., 1., 1., 1.});
+        marker = Color({0., 0.18, 0.83, 1.});
+        water = Color({0.29, 0.29, 1., 1.});
+        gray = Color({0.5, 0.5, 0.5, 1.});
+
+        background = white;
+
+        marker_size = 2;
+    }
+
+    virtual void plot_arrow(double u, double v,
+                            double off_x, double off_y,
+                            double len_x, double len_y,
+                            double magni,
+                            double angle, 
+                            Canvas &canvas)
+    {
+        double unorm = u / magni * len_x;
+        double vnorm = v / magni * len_y;
+
+        double x1 = off_x - unorm;
+        double y1 = off_y - vnorm;
+        double x2 = off_x + unorm;
+        double y2 = off_y + vnorm;
+        
+        Color cc = get_color_palette(magni);
+
+        canvas.drawLine(x1, y1, x2, y2, cc);
+        
+        angle = angle/180. * 3.14159265358979323846;
+
+        {
+            double ax = ((x1-x2) * cos(angle) - (y1-y2) * sin(angle))/2.;
+            double ay = ((x1-x2) * sin(angle) + (y1-y2) * cos(angle))/2.;
+            canvas.drawLine(ax+x2, ay+y2, x2, y2, cc);
+        }
+
+        {
+            double ax = ((x1-x2) * cos(-angle) - (y1-y2) * sin(-angle))/2.;
+            double ay = ((x1-x2) * sin(-angle) + (y1-y2) * cos(-angle))/2.;
+            canvas.drawLine(ax+x2, ay+y2, x2, y2, cc);
+        }    
+    }
+
+    virtual void plot_boundary(double x1, double y1, 
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, gray);
+    }
+
+    virtual void plot_water(double x1, double y1,
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, water);
+    }
+
+    virtual void plot_air(double x1, double y1,
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, white);
+    }
+
+    virtual void plot_background(Canvas &canvas) override
+    {
+        canvas.fill(background);
+    }
+
+    virtual void plot_marker(double x1, double y1, Canvas &canvas) override
+    {
+        canvas.drawPoint(x1, y1, marker_size, marker);
+    }
+
+
+    virtual Color get_color_palette(double t)
+    {
+        return black;
+    }
+};
+
+
+
+class Nightmare : public Theme
+{
+public:
+
+    int marker_size;
+
+    Color background;
+    Color black;
+    Color gray;
+    Color gray2;
+    Color water;
+    Color marker;
+
+    virtual void render(Canvas &canvas, const char *filename) override
+    {
+        Image &image = canvas.image;
+        image.save(filename);
+    }
+
+    virtual void initialize() override
+    {
+        background = Color({0., 0., 0., 1.});
+        black = background;
+        gray = Color({0.2, 0.2, 0.2, 1.0});
+        gray2 = Color({0.15, 0.15, 0.15, 1.0});
+        water = Color({0.64, 0.30, 0.58, 1.});
+        marker = Color({0.94, 0.67, 0.87, 1.});
+
+        marker_size = 2;
+    }
+
+    virtual void plot_arrow(double u, double v,  //normalized arrow vector
+                            double off_x, double off_y,  //center position
+                            double len_x, double len_y, //arrow length
+                            double magni,  //magitude //0~1
+                            double angle, //arrow angle
+                            Canvas &canvas
+                            ) override
+    {
+        double sq = sqrt(u*u+v*v);
+        double unorm = u/sq * len_x;
+        double vnorm = v/sq * len_y;
+
+        double x1 = off_x - unorm;
+        double y1 = off_y - vnorm;
+        double x2 = off_x + unorm;
+        double y2 = off_y + vnorm;
+        
+        Color cc = get_color_palette(sq/magni);
+
+        canvas.drawLine(x1, y1, x2, y2, cc);
+        
+        angle = angle/180. * 3.14159265358979323846;
+
+        {
+            double ax = ((x1-x2) * cos(angle) - (y1-y2) * sin(angle))/2.;
+            double ay = ((x1-x2) * sin(angle) + (y1-y2) * cos(angle))/2.;
+            canvas.drawLine(ax+x2, ay+y2, x2, y2, cc);
+        }
+
+        {
+            double ax = ((x1-x2) * cos(-angle) - (y1-y2) * sin(-angle))/2.;
+            double ay = ((x1-x2) * sin(-angle) + (y1-y2) * cos(-angle))/2.;
+            canvas.drawLine(ax+x2, ay+y2, x2, y2, cc);
+        }
+    }
+
+    virtual void plot_boundary(double x1, double y1, 
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, gray2, gray2);
+    }
+
+    virtual void plot_water(double x1, double y1,
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, water, water);
+    }
+
+    virtual void plot_air(double x1, double y1,
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, gray2, background);
+    }
+
+    virtual void plot_background(Canvas &canvas) override
+    {
+        canvas.fill(background);
+    }
+
+    virtual void plot_marker(double x1, double y1, Canvas &canvas) override
+    {
+        canvas.drawPoint(x1, y1, marker_size, marker);
+    }
+
+    virtual Color get_color_palette(double t) override
+    {
+        Color g({0., 0., 0., 1.});
+        Color a({0.5, 0.5, 0.5, 0.});
+        Color b({0.5, 0.5, 0.5, 0.});
+        Color c({1., 1., 1., 0.});
+        Color d({0.0, 0.33, 0.67, 0.});
+
+        g.r = clamp(a.r + b.r * cos(2.*3.14159625358979323846*(c.r*t + d.r)), 0., 1.);
+        g.g = clamp(a.g + b.g * cos(2.*3.14159625358979323846*(c.g*t + d.g)), 0., 1.);
+        g.b = clamp(a.b + b.b * cos(2.*3.14159625358979323846*(c.b*t + d.b)), 0., 1.);
+
+        return g;
+    }
+};
+
+
+class Paper : public Theme
+{
+public:
+    int marker_size;
+    Color black;
+    Color white;
+    Color gray;
+    Color water;
+    Color marker;
+    Color background;
+
+    double *noise=0;
+
+    ~Paper()
+    {
+        delete[] noise;
+    }
+
+    double sample(double i, double j)
+    {
+        i -= floor(i);
+        j -= floor(j);
+        i *= 255.;
+        j *= 255.;
+        
+        int x1 = (int)floor(j);
+        int y1 = (int)floor(i);
+        int x2 = (int)clamp(x1+1, 0, 255);
+        int y2 = (int)clamp(y1+1, 0, 255);
+
+        double a = j - x1;
+        double b = i - y1;
+
+        double yy1 = noise[y1 * 256 + x1] * (1-a) + noise[y1 * 256 + x2] * a;
+        double yy2 = noise[y2 * 256 + x1] * (1-a) + noise[y2 * 256 + x2] * a;
+
+        return yy1 * (1-b) + yy2 * b;
+    }
+
+    virtual void render(Canvas &canvas, const char *filename) override
+    {
+        Image& image = canvas.image;
+#pragma omp parallel for num_threads(8) schedule(dynamic, 4) shared(image)
+        for(unsigned i=0;i<image.height; ++i)
+        {
+            double dy = i/(double)image.height;
+            for(unsigned j=0;j<image.width;++j)
+            {
+                double dx = j /(double)image.width;
+
+                Color col = image(j, i);
+                double p = pow(16.0*dx*dy*(1.0-dx)*(1.0-dy), 0.2);
+                p *= (0.9 + 0.1 * sample((double)i/256., (double)j/256.));
+
+                col.r = pow(col.r * p, 0.4545);
+                col.g = pow(col.g * p, 0.4545);
+                col.b = pow(col.b * p, 0.4545);
+                image(j, i) = col;
+            }
+        }
+
+        image.save(filename);
+    }
+
+    virtual void initialize() override
+    {
+        black = Color({0.1, 0.1, 0.1, 1.});
+        white = Color({1., 1., 1., 1.});
+        marker = Color({0., 0.18, 0.83, 1.});
+        water = Color({0.29, 0.29, 1., 1.});
+        gray = Color({0.5, 0.5, 0.5, 1.});
+
+        background = white;
+
+        noise = new double[256*256]{};
+        
+        for(int i=0;i<256*256;++i)
+            noise[i] = rand()/(double)RAND_MAX;
+
+        marker_size = 2;
+    }
+
+    virtual void plot_arrow(double u, double v,
+                            double off_x, double off_y,
+                            double len_x, double len_y,
+                            double magni,
+                            double angle, 
+                            Canvas &canvas)
+    {
+        double unorm = u / magni * len_x;
+        double vnorm = v / magni * len_y;
+
+        double x1 = off_x - unorm;
+        double y1 = off_y - vnorm;
+        double x2 = off_x + unorm;
+        double y2 = off_y + vnorm;
+        
+        Color cc = get_color_palette(magni);
+
+        canvas.drawLine(x1, y1, x2, y2, cc);
+        
+        angle = angle/180. * 3.14159265358979323846;
+
+        {
+            double ax = ((x1-x2) * cos(angle) - (y1-y2) * sin(angle))/2.;
+            double ay = ((x1-x2) * sin(angle) + (y1-y2) * cos(angle))/2.;
+            canvas.drawLine(ax+x2, ay+y2, x2, y2, cc);
+        }
+
+        {
+            double ax = ((x1-x2) * cos(-angle) - (y1-y2) * sin(-angle))/2.;
+            double ay = ((x1-x2) * sin(-angle) + (y1-y2) * cos(-angle))/2.;
+            canvas.drawLine(ax+x2, ay+y2, x2, y2, cc);
+        }    
+    }
+
+    virtual void plot_boundary(double x1, double y1, 
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, gray);
+    }
+
+    virtual void plot_water(double x1, double y1,
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, water);
+    }
+
+    virtual void plot_air(double x1, double y1,
+                            double x2, double y2,
+                            Canvas &canvas) override
+    {
+        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, white);
+    }
+
+    virtual void plot_background(Canvas &canvas) override
+    {
+        canvas.fill(background);
+    }
+
+    virtual void plot_marker(double x1, double y1, Canvas &canvas) override
+    {
+        canvas.drawPoint(x1, y1, marker_size, marker);
+    }
+
+
+    virtual Color get_color_palette(double t)
+    {
+        return black;
+    }
+};
+
+
+
 // ===== Renderer =====
+template<typename Themes>
 class Renderer
 {
 public:
-    Color white;
-    Color gray;
-    Color blue1;
-    Color blue2;
-    Color black;
-
+    Themes themes;
+    
     Canvas canvas;
     Grid grid;
 
@@ -218,14 +623,13 @@ public:
             std::vector<double> &u, std::vector<double> &v) 
         : canvas(w, h), grid(nx, ny, dx, dy, particle_list),
           nx(nx), ny(ny), dx(dx), dy(dy), particle_size(2),
-          white({1., 1., 1., 1.}),
-          gray({.5, .5, .5, 1.}),
-          blue1({0., 0., 1., 1.}),
-          blue2({0.5, 0.5, 1., 1.}),
-          black({0., 0., 0., 1.}),
           margin_x(0.9), margin_y(0.9),
           u(u), v(v)
-    { grid.update(); canvas.fill(white); }
+    { 
+        grid.update(); 
+        themes.initialize();
+        themes.plot_background(canvas);
+    }
 
     void analyzeGrid()
     {
@@ -260,31 +664,30 @@ public:
         // top bottom boundary
         for(int i=0;i<nx+2;++i)
         {
-            canvas.fillRect(pivot_x+ddx*i, pivot_y, pivot_x+ddx*(i+1), pivot_y+ddy, white, gray);
-            canvas.fillRect(pivot_x+ddx*i, pivot_y+ddy*(ny+1), pivot_x+ddx*(i+1), pivot_y+ddy*(ny+2), white, gray);
+            themes.plot_boundary(pivot_x+ddx*i, pivot_y, pivot_x+ddx*(i+1), pivot_y+ddy, canvas);
+            themes.plot_boundary(pivot_x+ddx*i, pivot_y+ddy*(ny+1), pivot_x+ddx*(i+1), pivot_y+ddy*(ny+2), canvas);
         }
 
         for(int i=0;i<ny+2;++i)
         {
-            canvas.fillRect(pivot_x, pivot_y+ddy*i, pivot_x+ddx, pivot_y+ddy*(i+1), white, gray);
-            canvas.fillRect(pivot_x+ddx*(nx+1), pivot_y+ddy*i, pivot_x+ddx*(nx+2), pivot_y+ddy*(i+1), white, gray);
+            themes.plot_boundary(pivot_x, pivot_y+ddy*i, pivot_x+ddx, pivot_y+ddy*(i+1), canvas);
+            themes.plot_boundary(pivot_x+ddx*(nx+1), pivot_y+ddy*i, pivot_x+ddx*(nx+2), pivot_y+ddy*(i+1), canvas);
         }
 
-        Color fillc;
-
+#pragma omp parallel for num_threads(8) schedule(dynamic, 4)
         for(int i=0;i<ny;++i)
         {
             for(int j=0;j<nx;++j)
             {
-                if(grid(j, i) == 1)  //FLUID
-                    fillc = blue2;
-                else   //AIR
-                    fillc = white;
 
                 int off_x = pivot_x + ddx * (j+1);
                 int off_y = pivot_y + ddy * (i+1);
 
-                canvas.fillRect(off_x, off_y, off_x+ddx, off_y+ddy, white, fillc);
+                if(grid(j, i) == 1)  //fluid
+                    themes.plot_water(off_x, off_y, off_x+ddx, off_y+ddy, canvas);
+                else //air
+                    themes.plot_air(off_x, off_y, off_x+ddx, off_y+ddy, canvas);
+
             }
         }
 
@@ -295,12 +698,11 @@ public:
         double ddx = (double)len_x/(double)(nx+2);
         double ddy = (double)len_y/(double)(ny+2);
 
-
         for(auto& p:grid.particle_list)
         {
             int ix = (p.x/dx+1)*ddx + pivot_x;
             int iy = (p.y/dy+1)*ddy + pivot_y;
-            canvas.drawPoint(ix, iy, particle_size, blue1);
+            themes.plot_marker(ix, iy, canvas);
         }
     }
 
@@ -312,7 +714,7 @@ public:
         if(u.size() == 0 || v.size() == 0)
             return;
 
-        double magni = 0;
+        double max_magni = 0;
         for(int i=0;i<ny;++i)
         {
             for(int j=0;j<nx;++j)
@@ -321,41 +723,29 @@ public:
                 double fv = (v[(i+1)*nx+j] + v[i*nx+j])/2.;
                 double m = sqrt(fu*fu+fv*fv);
 
-                magni = magni < m ? m:magni;
+                max_magni = max_magni < m ? m:max_magni;
             }
         }
 
+#pragma omp parallel for num_threads(8) schedule(dynamic, 4) shared(max_magni)
         for(int i=0;i<ny;++i)
         {
             for(int j=0;j<nx;++j)
             {
-                double fu = (u[i*(nx+1) + j+1] + u[i*(nx+1) + j])/2.;
-                double fv = (v[(i+1)*nx+j] + v[i*nx+j])/2.;
+                double ufield = (u[i*(nx+1) + j+1] + u[i*(nx+1) + j])/2.;
+                double vfield = (v[(i+1)*nx+j] + v[i*nx+j])/2.;
                 //double m = sqrt(fu*fu+fv*fv);
-
-                fu = fu/magni * ddx/5.;
-                fv = fv/magni * ddy/5.;
 
                 int off_x = pivot_x + ddx * (j+1);
                 int off_y = pivot_y + ddy * (i+1);
 
-                double x1 = off_x + ddx/2. - fu;
-                double y1 = off_y + ddy/2. - fv;
-                double x2 = off_x + ddx/2. + fu;
-                double y2 = off_y + ddy/2. + fv;
 
-                canvas.drawLine(x1, y1, x2, y2, black);
-                
-                {
-                double ax = ((x1-x2) * cos(0.52359) - (y1-y2) * sin(0.52359))/2.; 
-                double ay = ((x1-x2) * sin(0.52359) + (y1-y2) * cos(0.52359))/2.;
-                canvas.drawLine(ax+x2, ay+y2, x2, y2, black);
-                }
-                {
-                double ax = ((x1-x2) * cos(-0.52359) - (y1-y2) * sin(-0.52359))/2.; 
-                double ay = ((x1-x2) * sin(-0.52359) + (y1-y2) * cos(-0.52359))/2.;
-                canvas.drawLine(ax+x2, ay+y2, x2, y2, black);
-                }
+                themes.plot_arrow(ufield, vfield,
+                                off_x + ddx/2., off_y + ddy/2.,
+                                ddx/5., ddy/5.,
+                                max_magni,
+                                30, 
+                                canvas);    
 
             }
         }
@@ -369,15 +759,15 @@ public:
         drawField();
     }
 
-    void save(const char *filename){ canvas.image.save(filename); }
+    void save(const char *filename){ themes.render(canvas, filename); }
 };
 
 
 
-// ./exe input output width height field
+// ./exe input output width height [field] [themes]
 int main(int argc, char **argv)
 {
-    assert(argc == 5 || argc == 6);
+    assert(argc == 5 || argc == 6 || argc == 7);
 
     unsigned width = atoi(argv[3]);
     unsigned height = atoi(argv[4]);
@@ -406,7 +796,7 @@ int main(int argc, char **argv)
         particles.push_back({x, y});
     }
 
-    bool field = (argc == 6) && (atoi(argv[5])==1);
+    bool field = (argc >= 6) && (atoi(argv[5])==1);
 
     std::vector<double> field_u;
     std::vector<double> field_v;
@@ -415,26 +805,40 @@ int main(int argc, char **argv)
     {
         field_u.reserve( (nx+1)*ny );
         field_v.reserve( nx*(ny+1) );
-        double tmp;
+        double tmp = 0;
         for(int i=0;i<(nx+1)*ny;++i)
         {
             fin.read((char*)&tmp, sizeof(double));
+            if(fin.eof())
+                break;
             field_u.push_back(tmp);
         }
         for(int i=0;i<nx*(ny+1);++i)
         {
             fin.read((char*)&tmp, sizeof(double));
+            if(fin.eof())
+                break;
             field_v.push_back(tmp);
         }
     }
 
     fin.close();
 
-
-    Renderer renderer(width, height, nx, ny, dx, dy, particles, field_u, field_v);
-
-    renderer.render();
-    renderer.save(argv[2]);
+    if(std::string(argv[argc-1]) == std::string("Nightmare"))
+    {
+        Renderer<Nightmare> renderer(width, height, nx, ny, dx, dy, particles, field_u, field_v);
+        renderer.render();
+        renderer.save(argv[2]);
+    }else if(std::string(argv[argc-1]) == std::string("Paper")){
+        Renderer<Paper> renderer(width, height, nx, ny, dx, dy, particles, field_u, field_v);
+        renderer.render();
+        renderer.save(argv[2]);
+    }else
+    {
+        Renderer<Normal> renderer(width, height, nx, ny, dx, dy, particles, field_u, field_v);
+        renderer.render();
+        renderer.save(argv[2]);
+    }
 
     return 0;
 }

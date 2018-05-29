@@ -25,7 +25,7 @@ double rho;
 double rad = 0.08;
 const double g = 9.81;
 const int block_size = 16;
-const int exp_iter = 20;
+const int exp_iter = 9;
 
 int max_iter;
 double tol;
@@ -560,12 +560,12 @@ __global__ void _clean_field(int* const status, double* const u, double* const v
         if(_safe_get(status, x, y-1, d_nx, d_ny) == 0)
             v[idx] = 0;
 
-        if(x != d_nx-1 || y != d_ny-1)return;
-
-        if(_safe_get(status, x+1, y, d_nx, d_ny) == 0)
-            u[idx+y+1] = 0;
-        if(_safe_get(status, x, y+1, d_nx, d_ny) == 0)
-            v[idx+y] = 0;
+        if(x == d_nx-1)
+            if(_safe_get(status, x+1, y, d_nx, d_ny) == 0)
+                u[idx+1] = 0;
+        if(y == d_ny-1)
+            if(_safe_get(status, x, y+1, d_nx, d_ny) == 0)
+                v[idx+d_nx] = 0;
     }
 }
 
@@ -577,31 +577,31 @@ __global__ void _extrapolate_u(int* const nv, int* const v, double* const nu, do
     const int x = block_size * blockIdx.x + threadIdx.x;
     const int idx = y * (d_nx+1) + x;
 
-    if(y >= d_ny-1 || y < 1 || x >= d_nx || x < 1)return;
+    if(y >= d_ny || y < 0 || x >= d_nx+1 || x < 0)return;
     if(v[idx] != 0)return;
 
     double sum = 0;
     int count = 0;
     
-    if(v[idx+1] != 0)
+    if(x < d_nx && v[idx+1] != 0)
     {
         sum += u[idx+1];
         count++;
     }
 
-    if(v[idx-1] != 0)
+    if(x > 0 && v[idx-1] != 0)
     {
         sum += u[idx-1];
         count++;
     }
 
-    if(v[idx+d_nx] != 0)
+    if(y+1 < d_ny && v[idx+d_nx] != 0)
     {
         sum += u[idx+d_nx];
         count++;
     }
 
-    if(v[idx-d_nx] != 0)
+    if(y > 0 && v[idx-d_nx] != 0)
     {
         sum += u[idx-d_nx];
         count++;
@@ -622,31 +622,31 @@ __global__ void _extrapolate_v(int* const nv, int* const v, double* const nu, do
     const int x = block_size * blockIdx.x + threadIdx.x;
     const int idx = y * d_nx + x;
 
-    if(y >= d_ny || y < 1 || x >= d_nx-1 || x < 1)return;
+    if(y >= d_ny+1 || y < 0 || x >= d_nx || x < 0)return;
     if(v[idx] != 0)return;
 
     double sum = 0;
     int count = 0;
     
-    if(v[idx+1] != 0)
+    if(x+1 < d_nx && v[idx+1] != 0)
     {
         sum += u[idx+1];
         count++;
     }
 
-    if(v[idx-1] != 0)
+    if(x > 0 && v[idx-1] != 0)
     {
         sum += u[idx-1];
         count++;
     }
 
-    if(v[idx+d_nx] != 0)
+    if(y < d_ny && v[idx+d_nx] != 0)
     {
         sum += u[idx+d_nx];
         count++;
     }
 
-    if(v[idx-d_nx] != 0)
+    if(y > 0 && v[idx-d_nx] != 0)
     {
         sum += u[idx-d_nx];
         count++;
@@ -1080,6 +1080,7 @@ int main(int argc, char **argv)
 
     // TODO: create PCGsolver
     PCGsolver p_solver(max_iter, tol);
+    char filename[30];
 
     for(int i=0;i<steps;++i)
     {
@@ -1087,23 +1088,42 @@ int main(int argc, char **argv)
             updateStatus();
         // TODO: advect
             advect();
+            
+            //get_result();
+            //sprintf(filename, "%s_adv_%03i.sr", argv[2], i+1);
+            //write(filename);
+            
         // TODO: addForce
             addForce();
+            
+            //get_result();
+            //sprintf(filename, "%s_ext_%03i.sr", argv[2], i+1);
+            //write(filename);
+            
         // TODO: enforce boundary
             enforce_boundary();
         // TODO: project
             project(p_solver);
+            
+            //get_result();
+            //sprintf(filename, "%s_proj_%03i.sr", argv[2], i+1);
+            //write(filename);
+            
         // TODO: clean field
             clean_field();
+            
+            //get_result();
+            //sprintf(filename, "%s_cln_%03i.sr", argv[2], i+1);
+            //write(filename);
+            
         // TODO: extrapolate
             extrapolate();
+            
         // TODO: advect markers
             advectMarkers();
 
         // Debugging...
             get_result();
-
-            char filename[30];
             sprintf(filename, "%s_all_%03i.sr", argv[2], i+1);
             write(filename);
 

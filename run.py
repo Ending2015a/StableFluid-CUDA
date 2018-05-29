@@ -12,12 +12,14 @@ nu = '1'
 rho = '1000'
 max_iter = '1000'
 tol = '1e-7'
+theme = 'Nightmare'
 
-width = '7680'
-height = '4320'
 
-#width = 1920
-#height = 1080
+#width = '7680'
+#height = '4320'
+
+width = 1920
+height = 1080
 
 resize_width = 1920
 resize_height = 1080
@@ -42,7 +44,7 @@ mapsr = [ os.path.join(folder, x) for x in os.listdir(folder) if x.endswith('.sr
 mapsr = sorted(mapsr)
 for idx, sr in enumerate(mapsr):
     print('Rendering {} frame'.format(idx))
-    os.system('./renderer/main {} {} {} {}'.format(sr, sr.replace('.sr', '.png'), width, height))
+    os.system('./renderer/main {} {} {} {} 1 {}'.format(sr, sr.replace('.sr', '.png'), width, height, theme))
     
 
 ###########
