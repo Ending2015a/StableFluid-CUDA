@@ -35,8 +35,6 @@ PCGsolver::~PCGsolver()
     free_memory();
 
     // cusparse
-    cusparseDestroyMatDescr(descr_A);
-    cusparseDestroyMatDescr(descr_L);
     cusparseDestroy(cusHandle);
     cublasDestroy(cubHandle);
 }
@@ -126,6 +124,11 @@ void PCGsolver::solve_gpumem(int N, int nz,
 
     std::cout << "[PCGsolver] solved in " << k << " iterations, final norm(r) = " 
               << std::scientific << rTr << std::endl;
+
+    error_check(cusparseDestroySolveAnalysisInfo(info_A));
+    error_check(cusparseDestroySolveAnalysisInfo(info_L));
+    error_check(cusparseDestroySolveAnalysisInfo(info_U));
+
 }
 
 void PCGsolver::convert_coo2csr(const int N, const int nonzero, const int* cooRowIdx, int *csrRowIdx)
@@ -149,6 +152,9 @@ void PCGsolver::free_memory()
     cudaFree(d_q);
     cudaFree(d_p);
     cudaFree(d_ic);
+    cusparseDestroyMatDescr(descr_A);
+    cusparseDestroyMatDescr(descr_L);
+
 }
 
 void PCGsolver::check_and_resize()

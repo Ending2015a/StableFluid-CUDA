@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <fstream>
 #include <random>
@@ -11,8 +12,8 @@
 #include <ctime>
 #include <cstdlib>
 
-#include "../lodepng/lodepng.h"
-
+#include <lodepng.h>
+#include <cxxopts.hpp>
 
 template<typename T>
 T clamp(T x, T mn, T mx)
@@ -192,6 +193,8 @@ public:
 class Theme
 {
 public:
+    bool draw_grid;
+
     virtual void render(Canvas &canvas, const char *filename) = 0;
     virtual void initialize() = 0;
     virtual void plot_arrow(double u, double v, 
@@ -237,7 +240,7 @@ public:
         black = Color({0., 0., 0., 1.});
         white = Color({1., 1., 1., 1.});
         marker = Color({0., 0.18, 0.83, 1.});
-        water = Color({0.29, 0.29, 1., 1.});
+        water = Color({0.40, 0.64, 0.98, 1.});
         gray = Color({0.5, 0.5, 0.5, 1.});
 
         background = white;
@@ -283,14 +286,20 @@ public:
                             double x2, double y2,
                             Canvas &canvas) override
     {
-        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, gray);
+        if(draw_grid)
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, gray);
+        else
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, gray, gray);
     }
 
     virtual void plot_water(double x1, double y1,
                             double x2, double y2,
                             Canvas &canvas) override
     {
-        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, water);
+        if(draw_grid)
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, water);
+        else    
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, water, water);
     }
 
     virtual void plot_air(double x1, double y1,
@@ -404,7 +413,10 @@ public:
                             double x2, double y2,
                             Canvas &canvas) override
     {
-        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, gray2, background);
+        if(draw_grid)
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, gray2, background);
+        else
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, background, background);
     }
 
     virtual void plot_background(Canvas &canvas) override
@@ -419,6 +431,7 @@ public:
 
     virtual Color get_color_palette(double t) override
     {
+        t = (1.-t)*(-0.8);
         Color g({0., 0., 0., 1.});
         Color a({0.5, 0.5, 0.5, 0.});
         Color b({0.5, 0.5, 0.5, 0.});
@@ -554,14 +567,20 @@ public:
                             double x2, double y2,
                             Canvas &canvas) override
     {
-        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, gray);
+        if(draw_grid)
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, gray);
+        else
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, gray, gray);
     }
 
     virtual void plot_water(double x1, double y1,
                             double x2, double y2,
                             Canvas &canvas) override
     {
-        canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, water);
+        if(draw_grid)
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, white, water);
+        else
+            canvas.fillRect((int)x1, (int)y1, (int)x2, (int)y2, water, water);
     }
 
     virtual void plot_air(double x1, double y1,
@@ -616,6 +635,10 @@ public:
 
     std::vector<double> u;
     std::vector<double> v;
+
+    bool draw_markers;
+    bool draw_field;
+    bool draw_grid;
 
     Renderer(unsigned w, unsigned h, 
             int nx, int ny, double dx, double dy,
@@ -753,13 +776,17 @@ public:
 
     void render()
     {
+        themes.draw_grid = draw_grid;
+
         analyzeGrid();
         drawGrid();
-        drawParticles();
-        drawField();
+        if(draw_markers)
+            drawParticles();
+        if(draw_field)
+            drawField();
     }
 
-    void save(const char *filename){ themes.render(canvas, filename); }
+    void save(std::string filename){ themes.render(canvas, filename.c_str()); }
 };
 
 
@@ -767,12 +794,59 @@ public:
 // ./exe input output width height [field] [themes]
 int main(int argc, char **argv)
 {
-    assert(argc == 5 || argc == 6 || argc == 7);
 
-    unsigned width = atoi(argv[3]);
-    unsigned height = atoi(argv[4]);
+    cxxopts::Options options(argv[0], "Homework 6 - Fluid Renderer");
 
-    std::ifstream fin(argv[1], std::ios::binary);
+    options
+        .add_options()
+        ("i,input", "Input file, a snapshot file", cxxopts::value<std::string>())
+        ("o,output", "Output file, in PNG format", cxxopts::value<std::string>())
+        ("width", "Output width", cxxopts::value<unsigned>()->default_value("1920"))
+        ("height", "Output height", cxxopts::value<unsigned>()->default_value("1080"))
+        ("v,velocity", "Draw velocity field flag")
+        ("m,marker", "Draw markers flag")
+        ("g,grid", "Draw grid flag")
+        ("t,theme", "Theme (None/Paper/Nightmare)", cxxopts::value<std::string>()->default_value("None"))
+        ("h,help", "Print help");
+    //assert(argc == 5 || argc == 6 || argc == 7);
+
+    auto result = options.parse(argc, argv);
+
+    if(result.count("help"))
+    {
+        std::cout << options.help({"", "Group"}) << std::endl;
+        exit(0);
+    }
+
+    if(!result.count("i") || !result.count("o"))
+    {
+        std::cout << "[ERROR] Please specifiy the input and output file" << std::endl;
+        std::cout << std::endl;
+        std::cout << options.help() << std::endl;
+        exit(0);
+    }
+
+    //std::cout << "Input: " << result["i"].as<std::string>() << std::endl;
+    //std::cout << "Output: " << result["o"].as<std::string>() << std::endl;
+    //std::cout << "Width: " << result["width"].as<unsigned>() << std::endl;
+    //std::cout << "Height: " << result["height"].as<unsigned>() << std::endl;
+    //std::cout << "Draw velocity field: " << std::boolalpha << (result.count("f") > 0) << std::endl;
+    //std::cout << "Draw markers: " << std::boolalpha << (result.count("m") > 0) << std::endl;
+    //std::cout << "Draw grid flag: " << std::boolalpha << (result.count("g") > 0) << std::endl;
+    //std::cout << "Theme: " << result["t"].as<std::string>() << std::endl;
+
+
+    std::string input_file = result["i"].as<std::string>();
+    std::string output_file = result["o"].as<std::string>();
+    unsigned width = result["width"].as<unsigned>();
+    unsigned height = result["height"].as<unsigned>();
+    bool draw_markers = result["m"].as<bool>();
+    bool draw_field = result["v"].as<bool>();
+    bool draw_grid = result["g"].as<bool>();
+    std::string theme = result["t"].as<std::string>();
+
+
+    std::ifstream fin(input_file, std::ios::binary);
     int nx;
     int ny;
     double dx;
@@ -796,12 +870,10 @@ int main(int argc, char **argv)
         particles.push_back({x, y});
     }
 
-    bool field = (argc >= 6) && (atoi(argv[5])==1);
-
     std::vector<double> field_u;
     std::vector<double> field_v;
 
-    if(field)
+    if(draw_field)
     {
         field_u.reserve( (nx+1)*ny );
         field_v.reserve( nx*(ny+1) );
@@ -824,20 +896,29 @@ int main(int argc, char **argv)
 
     fin.close();
 
-    if(std::string(argv[argc-1]) == std::string("Nightmare"))
+    if(theme == "Nightmare")
     {
         Renderer<Nightmare> renderer(width, height, nx, ny, dx, dy, particles, field_u, field_v);
+        renderer.draw_markers = draw_markers;
+        renderer.draw_field = draw_field;
+        renderer.draw_grid = draw_grid;
         renderer.render();
-        renderer.save(argv[2]);
-    }else if(std::string(argv[argc-1]) == std::string("Paper")){
+        renderer.save(output_file);
+    }else if(theme == "Paper"){
         Renderer<Paper> renderer(width, height, nx, ny, dx, dy, particles, field_u, field_v);
+        renderer.draw_markers = draw_markers;
+        renderer.draw_field = draw_field;
+        renderer.draw_grid = draw_grid;
         renderer.render();
-        renderer.save(argv[2]);
+        renderer.save(output_file);
     }else
     {
         Renderer<Normal> renderer(width, height, nx, ny, dx, dy, particles, field_u, field_v);
+        renderer.draw_markers = draw_markers;
+        renderer.draw_field = draw_field;
+        renderer.draw_grid = draw_grid;
         renderer.render();
-        renderer.save(argv[2]);
+        renderer.save(output_file);
     }
 
     return 0;

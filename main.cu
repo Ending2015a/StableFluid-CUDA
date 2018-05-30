@@ -25,7 +25,7 @@ double rho;
 double rad = 0.08;
 const double g = 9.81;
 const int block_size = 16;
-const int exp_iter = 9;
+const int exp_iter = 30;
 
 int max_iter;
 double tol;
@@ -577,7 +577,8 @@ __global__ void _extrapolate_u(int* const nv, int* const v, double* const nu, do
     const int x = block_size * blockIdx.x + threadIdx.x;
     const int idx = y * (d_nx+1) + x;
 
-    if(y >= d_ny || y < 0 || x >= d_nx+1 || x < 0)return;
+    if(y >= d_ny-1 || y < 1 || x >= d_nx || x < 1)return;
+    //if(y >= d_ny || y < 0 || x >= d_nx || x < 1)return;
     if(v[idx] != 0)return;
 
     double sum = 0;
@@ -622,7 +623,8 @@ __global__ void _extrapolate_v(int* const nv, int* const v, double* const nu, do
     const int x = block_size * blockIdx.x + threadIdx.x;
     const int idx = y * d_nx + x;
 
-    if(y >= d_ny+1 || y < 0 || x >= d_nx || x < 0)return;
+    if(y >= d_ny || y < 1 || x >= d_nx-1 || x < 1)return;
+    //if(y >= d_ny || y < 1 || x >= d_nx || x < 0)return;
     if(v[idx] != 0)return;
 
     double sum = 0;
@@ -682,10 +684,10 @@ __global__ void _advectmarkers(const int num, double* const x, double* const y,
     _RK4(field_u, field_v, dt, XP, YP, &XP1, &YP1, d_nx+1, d_ny, d_nx, d_ny+1);
 
     // clamp into boundaries & set new position
-    XP1 = XP1 < 0. ? 0.: XP1 > lim_x ? lim_x : XP1;
+    XP1 = XP1 < 0. ? 0.: XP1 > lim_x-(1e-8) ? lim_x-(1e-8) : XP1;
     x[idx] = XP1;
     
-    YP1 = YP1 < 0. ? 0.: YP1 > lim_y ? lim_y : YP1;
+    YP1 = YP1 < 0. ? 0.: YP1 > lim_y-(1e-8) ? lim_y-(1e-8) : YP1;
     y[idx] = YP1;
 }
 

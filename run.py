@@ -1,10 +1,10 @@
 #!/usr/bin/python
 import os
 
+
 input = 'map.sr'
 folder = 'output'
 output = 'result'
-png = 'result.png'
 avi = 'result_3'
 steps = '1000'
 dt = '0.03'
@@ -14,15 +14,14 @@ max_iter = '1000'
 tol = '1e-7'
 theme = 'Nightmare'
 
+width = '7680'
+height = '4320'
 
-#width = '7680'
-#height = '4320'
+#width = 1920
+#height = 1080
 
-width = 1920
-height = 1080
-
-resize_width = 1920
-resize_height = 1080
+resize_width = 3840
+resize_height = 2160
 
 os.system("rm ./{}/*".format(folder))
 
@@ -44,7 +43,7 @@ mapsr = [ os.path.join(folder, x) for x in os.listdir(folder) if x.endswith('.sr
 mapsr = sorted(mapsr)
 for idx, sr in enumerate(mapsr):
     print('Rendering {} frame'.format(idx))
-    os.system('./renderer/main {} {} {} {} 1 {}'.format(sr, sr.replace('.sr', '.png'), width, height, theme))
+    os.system('./renderer/main -i {} -o {} --width {} --height {} {}'.format(sr, sr.replace('.sr', '.png'), width, height, theme))
     
 
 ###########
@@ -61,7 +60,7 @@ video = None
 for idx, p in enumerate(pngs):
     print('Generating {} frame'.format(idx))
     f = cv2.imread(p)
-    f = cv2.resize(f, (3840, 2160))
+    f = cv2.resize(f, (resize_width, resize_height))
     if video == None:
         h, w, l = f.shape
         video = cv2.VideoWriter('{}.avi'.format(avi), cv2.VideoWriter_fourcc(*'XVID'), 30, (w, h))

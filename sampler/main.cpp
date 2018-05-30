@@ -1,11 +1,13 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <string>
 
 #include <cassert>
 #include <cmath>
 
-#include "../lodepng/lodepng.h"
+#include <lodepng.h>
+#include <cxxopts.hpp>
 
 #define max(x, y) ((x)>(y)?(x):(y))
 
@@ -34,9 +36,9 @@ void hash22(double x, double y, double &ox, double &oy)
 }
 
 
-void decode(const char* filename, unsigned char **image, unsigned int *width, unsigned int *height)
+void decode(std::string filename, unsigned char **image, unsigned int *width, unsigned int *height)
 {
-    unsigned int error = lodepng_decode32_file(image, width, height, filename);
+    unsigned int error = lodepng_decode32_file(image, width, height, filename.c_str());
     if(error)
         printf("error %u: %s\n", error, lodepng_error_text(error));
 }
@@ -44,18 +46,55 @@ void decode(const char* filename, unsigned char **image, unsigned int *width, un
 // ./exe input dx dy rate output
 int main(int argc, char **argv)
 {
-    assert(argc == 6);
-    std::ofstream fout(argv[5], std::ios::binary);
+
+    cxxopts::Options options(argv[0], "Homework 6 - Fluid Sampler");
+
+    options
+        .add_options()
+        ("i,input", "Input file, a binary image in PNG format", cxxopts::value<std::string>())
+        ("o,output", "Output file, snapshop", cxxopts::value<std::string>())
+        ("x,dx", "Delta x", cxxopts::value<double>()->default_value("0.1"))
+        ("y,dy", "Delta y", cxxopts::value<double>()->default_value("0.1"))
+        ("r,sr", "Sampling rate", cxxopts::value<unsigned>()->default_value("3"))
+        ("h,help", "Print help");
+
+    auto result = options.parse(argc, argv);
+    
+    if(result.count("help"))
+    {
+        std::cout << options.help() << std::endl;
+        exit(0);
+    }
+
+    if(!result.count("i") || !result.count("o"))
+    {
+        std::cout << "[ERROR] Please specifiy the input and output file" << std::endl;
+        std::cout << std::endl;
+        std::cout << options.help() << std::endl;
+        exit(0);
+    }
+
+    std::string input_file = result["i"].as<std::string>();
+    std::string output_file = result["o"].as<std::string>();
+    double dx = result["x"].as<double>();
+    double dy = result["y"].as<double>();
+    unsigned u_rate = result["r"].as<unsigned>();
+
+    if(u_rate > 5)
+    {
+        std::cout << "[WARN] The sampling rate " << u_rate << " is too high (must <= 5)" << std::endl;
+        exit(0);
+    }
+
+
+    std::ofstream fout(output_file, std::ios::binary);
 
     unsigned char* raw_image;
     unsigned int nx;
     unsigned int ny;
 
-    decode(argv[1], &raw_image, &nx, &ny);
-
-    double dx = atof(argv[2]);
-    double dy = atof(argv[3]);
-    double rate = atof(argv[4]);
+    decode(input_file, &raw_image, &nx, &ny);
+    double rate = (double)u_rate;
     
     std::vector<vec2> point_list;
 

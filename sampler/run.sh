@@ -1,7 +1,7 @@
 input="water50x50_001.png"
-dx=1
-dy=1
+dx=0.1
+dy=0.1
 rate=3
 output=map.sr
 
-./main $input $dx $dy $rate $output
+./main -i $input -o $output -x $dx -y $dy -r $rate

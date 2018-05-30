@@ -1,6 +1,6 @@
 CXX = g++
 LDFLAGS = -lm -fopenmp
-CXXFLAGS = -O3 -std=c++11
+CXXFLAGS = -O3 -std=c++11 -I./../lodepng -I./../cxxopts/include
 TARGETS = main
 SOURCES = ../lodepng/lodepng.cpp
 
