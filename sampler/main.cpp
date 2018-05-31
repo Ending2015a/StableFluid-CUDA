@@ -7,7 +7,7 @@
 #include <cmath>
 
 #include <lodepng.h>
-#include <cxxopts.hpp>
+#include <cmdline.h>
 
 #define max(x, y) ((x)>(y)?(x):(y))
 
@@ -46,45 +46,52 @@ void decode(std::string filename, unsigned char **image, unsigned int *width, un
 // ./exe input dx dy rate output
 int main(int argc, char **argv)
 {
+    cmdline::parser options;
 
-    cxxopts::Options options(argv[0], "Homework 6 - Fluid Sampler");
+    options.add<std::string>("input", 'i', "Input file, a binary image in PNG format", true);
+    options.add<std::string>("output", 'o', "Output snapshot file", true);
+    options.add<double>("dx", 'x', "Delta x", false, 0.1);
+    options.add<double>("dy", 'y', "Delta y", false, 0.1);
+    options.add<unsigned>("sr", 'r', "Sampling rate", false, 3, cmdline::range(1, 5));
 
-    options
-        .add_options()
-        ("i,input", "Input file, a binary image in PNG format", cxxopts::value<std::string>())
-        ("o,output", "Output file, snapshop", cxxopts::value<std::string>())
-        ("x,dx", "Delta x", cxxopts::value<double>()->default_value("0.1"))
-        ("y,dy", "Delta y", cxxopts::value<double>()->default_value("0.1"))
-        ("r,sr", "Sampling rate", cxxopts::value<unsigned>()->default_value("3"))
-        ("h,help", "Print help");
+    //cxxopts::Options options(argv[0], "Homework 6 - Fluid Sampler");
 
-    auto result = options.parse(argc, argv);
+    //options
+    //    .add_options()
+    //    ("i,input", "Input file, a binary image in PNG format", cxxopts::value<std::string>())
+    //    ("o,output", "Output file, snapshop", cxxopts::value<std::string>())
+    //    ("x,dx", "Delta x", cxxopts::value<double>()->default_value("0.1"))
+    //    ("y,dy", "Delta y", cxxopts::value<double>()->default_value("0.1"))
+    //    ("r,sr", "Sampling rate", cxxopts::value<unsigned>()->default_value("3"))
+    //    ("h,help", "Print help");
+
+    options.parse_check(argc, argv);
     
-    if(result.count("help"))
-    {
-        std::cout << options.help() << std::endl;
-        exit(0);
-    }
+    //if(result.count("help"))
+   // {
+   //     std::cout << options.help() << std::endl;
+   //     exit(0);
+   // }
 
-    if(!result.count("i") || !result.count("o"))
-    {
-        std::cout << "[ERROR] Please specifiy the input and output file" << std::endl;
-        std::cout << std::endl;
-        std::cout << options.help() << std::endl;
-        exit(0);
-    }
+   // if(!result.count("i") || !result.count("o"))
+   // {
+   //     std::cout << "[ERROR] Please specifiy the input and output file" << std::endl;
+   //     std::cout << std::endl;
+   //     std::cout << options.help() << std::endl;
+   //     exit(0);
+    //}
 
-    std::string input_file = result["i"].as<std::string>();
-    std::string output_file = result["o"].as<std::string>();
-    double dx = result["x"].as<double>();
-    double dy = result["y"].as<double>();
-    unsigned u_rate = result["r"].as<unsigned>();
+    std::string input_file = options.get<std::string>("input");
+    std::string output_file = options.get<std::string>("output");
+    double dx = options.get<double>("dx");
+    double dy = options.get<double>("dy");
+    unsigned u_rate = options.get<unsigned>("sr");
 
-    if(u_rate > 5)
-    {
-        std::cout << "[WARN] The sampling rate " << u_rate << " is too high (must <= 5)" << std::endl;
-        exit(0);
-    }
+    //if(u_rate > 5)
+   // {
+   //     std::cout << "[WARN] The sampling rate " << u_rate << " is too high (must <= 5)" << std::endl;
+   //     exit(0);
+   // }
 
 
     std::ofstream fout(output_file, std::ios::binary);

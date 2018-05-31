@@ -35,6 +35,8 @@ PCGsolver::~PCGsolver()
     free_memory();
 
     // cusparse
+    cusparseDestroyMatDescr(descr_A);
+    cusparseDestroyMatDescr(descr_L);
     cusparseDestroy(cusHandle);
     cublasDestroy(cubHandle);
 }
@@ -152,9 +154,6 @@ void PCGsolver::free_memory()
     cudaFree(d_q);
     cudaFree(d_p);
     cudaFree(d_ic);
-    cusparseDestroyMatDescr(descr_A);
-    cusparseDestroyMatDescr(descr_L);
-
 }
 
 void PCGsolver::check_and_resize()

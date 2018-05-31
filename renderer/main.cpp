@@ -13,7 +13,7 @@
 #include <cstdlib>
 
 #include <lodepng.h>
-#include <cxxopts.hpp>
+#include <cmdline.h>
 
 template<typename T>
 T clamp(T x, T mn, T mx)
@@ -795,36 +795,49 @@ public:
 int main(int argc, char **argv)
 {
 
-    cxxopts::Options options(argv[0], "Homework 6 - Fluid Renderer");
+    cmdline::parser options;
 
-    options
-        .add_options()
-        ("i,input", "Input file, a snapshot file", cxxopts::value<std::string>())
-        ("o,output", "Output file, in PNG format", cxxopts::value<std::string>())
-        ("width", "Output width", cxxopts::value<unsigned>()->default_value("1920"))
-        ("height", "Output height", cxxopts::value<unsigned>()->default_value("1080"))
-        ("v,velocity", "Draw velocity field flag")
-        ("m,marker", "Draw markers flag")
-        ("g,grid", "Draw grid flag")
-        ("t,theme", "Theme (None/Paper/Nightmare)", cxxopts::value<std::string>()->default_value("None"))
-        ("h,help", "Print help");
+    options.add<std::string>("input", 'i', "Input snapshot file", true);
+    options.add<std::string>("output", 'o', "Output PNG file", true);
+    options.add<unsigned>("width", '\0', "Output width", false, 1920);
+    options.add<unsigned>("height", '\0', "Output height", false, 1080);
+    options.add("velocity", 'v', "Draw velocity field");
+    options.add("marker", 'm', "Draw markers");
+    options.add("grid", 'g', "Draw grid");
+    options.add<std::string>("theme", 't', "Theme (None/Paper/Nightmare)", false, "None",
+                        cmdline::oneof<std::string>("None", "Paper", "Nightmare"));
+
+    //cxxopts::Options options(argv[0], "Homework 6 - Fluid Renderer");
+
+    //options
+    //    .add_options()
+    //    ("i,input", "Input file, a snapshot file", cxxopts::value<std::string>())
+    //    ("o,output", "Output file, in PNG format", cxxopts::value<std::string>())
+    //    ("width", "Output width", cxxopts::value<unsigned>()->default_value("1920"))
+    //    ("height", "Output height", cxxopts::value<unsigned>()->default_value("1080"))
+    //    ("v,velocity", "Draw velocity field")
+    //    ("m,marker", "Draw markers")
+    //    ("g,grid", "Draw grid")
+    //    ("t,theme", "Theme (None/Paper/Nightmare)", cxxopts::value<std::string>()->default_value("None"))
+    //    ("h,help", "Print help");
     //assert(argc == 5 || argc == 6 || argc == 7);
 
-    auto result = options.parse(argc, argv);
+    options.parse_check(argc, argv);
+    //auto result = options.parse(argc, argv);
 
-    if(result.count("help"))
-    {
-        std::cout << options.help({"", "Group"}) << std::endl;
-        exit(0);
-    }
+    //if(result.count("help"))
+    //{
+    //    std::cout << options.help({"", "Group"}) << std::endl;
+    //    exit(0);
+   // }
 
-    if(!result.count("i") || !result.count("o"))
-    {
-        std::cout << "[ERROR] Please specifiy the input and output file" << std::endl;
-        std::cout << std::endl;
-        std::cout << options.help() << std::endl;
-        exit(0);
-    }
+    //if(!result.count("i") || !result.count("o"))
+   // {
+   //     std::cout << "[ERROR] Please specifiy the input and output file" << std::endl;
+   //     std::cout << std::endl;
+   //     std::cout << options.help() << std::endl;
+   //     exit(0);
+   // }
 
     //std::cout << "Input: " << result["i"].as<std::string>() << std::endl;
     //std::cout << "Output: " << result["o"].as<std::string>() << std::endl;
@@ -836,14 +849,14 @@ int main(int argc, char **argv)
     //std::cout << "Theme: " << result["t"].as<std::string>() << std::endl;
 
 
-    std::string input_file = result["i"].as<std::string>();
-    std::string output_file = result["o"].as<std::string>();
-    unsigned width = result["width"].as<unsigned>();
-    unsigned height = result["height"].as<unsigned>();
-    bool draw_markers = result["m"].as<bool>();
-    bool draw_field = result["v"].as<bool>();
-    bool draw_grid = result["g"].as<bool>();
-    std::string theme = result["t"].as<std::string>();
+    std::string input_file = options.get<std::string>("input");// result["i"].as<std::string>();
+    std::string output_file = options.get<std::string>("output");//result["o"].as<std::string>();
+    unsigned width = options.get<unsigned>("width");//result["width"].as<unsigned>();
+    unsigned height = options.get<unsigned>("height");//result["height"].as<unsigned>();
+    bool draw_markers = options.exist("marker"); //result["m"].as<bool>();
+    bool draw_field = options.exist("velocity"); //result["v"].as<bool>();
+    bool draw_grid = options.exist("grid"); //result["g"].as<bool>();
+    std::string theme = options.get<std::string>("theme"); //result["t"].as<std::string>();
 
 
     std::ifstream fin(input_file, std::ios::binary);
