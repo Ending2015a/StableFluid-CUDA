@@ -25,7 +25,7 @@ double rho;
 double rad = 0.08;
 const double g = 9.81;
 const int block_size = 16;
-const int exp_iter = 30;
+int exp_iter = 10;
 
 int max_iter;
 double tol;
@@ -1053,7 +1053,7 @@ void read(const char *filename)
     }
 }
 
-// ./exe input output steps dt nu rho max_iter tol
+// ./exe input output steps dt rho round max_iter tol
 int main(int argc, char **argv)
 {
     assert(argc == 9);
@@ -1064,8 +1064,8 @@ int main(int argc, char **argv)
     // initialize parameters
     steps = atoi(argv[3]);
     dt = atof(argv[4]);
-    nu = atof(argv[5]);
-    rho = atof(argv[6]);
+    exp_iter = atoi(argv[6]);
+    rho = atof(argv[5]);
     max_iter = atoi(argv[7]);
     tol = atof(argv[8]);
 
@@ -1076,7 +1076,7 @@ int main(int argc, char **argv)
 
     get_result();
     char fff[30];
-    sprintf(fff, "%s_all_000.sr", argv[2]);
+    sprintf(fff, "%s_0000.sr", argv[2]);
     write(fff);
     
 
@@ -1126,7 +1126,7 @@ int main(int argc, char **argv)
 
         // Debugging...
             get_result();
-            sprintf(filename, "%s_all_%03i.sr", argv[2], i+1);
+            sprintf(filename, "%s_%04i.sr", argv[2], i+1);
             write(filename);
 
     }

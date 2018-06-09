@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import os
 
-simulate = False
+simulate = True
 render = True
 generate = True
 
@@ -9,22 +9,22 @@ input = 'map.sr'
 folder = 'output'
 output = 'result'
 avi = 'result_3'
-steps = '1000'
+steps = '1500'
 dt = '0.03'
-nu = '1'
+exp_iter = '100'
 rho = '1000'
 max_iter = '1000'
 tol = '1e-7'
 theme = 'Nightmare'
 
-width = '7680'
-height = '4320'
+width = '1080'
+height = '1080'
 
 #width = 1920
 #height = 1080
 
-resize_width = 3840
-resize_height = 2160
+resize_width = 1080
+resize_height = 1080
 
 
 
@@ -36,7 +36,7 @@ if simulate:
     print("simulating ...")
 
     output_path = os.path.join(folder, output)
-    os.system("time ./main {} {} {} {} {} {} {} {}".format(input, output_path, steps, dt, nu, rho, max_iter, tol))
+    os.system("time ./main {} {} {} {} {} {} {} {}".format(input, output_path, steps, dt, rho, exp_iter, max_iter, tol))
 
 
 ###############
@@ -65,7 +65,7 @@ if generate:
     video = None
 
     for idx, p in enumerate(pngs):
-        print('Generating {} frame'.format(idx))
+        print('Generating {}'.format(p))
         f = cv2.imread(p)
         f = cv2.resize(f, (resize_width, resize_height))
         if video == None:
