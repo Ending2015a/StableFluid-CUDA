@@ -1,9 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import os
 
 simulate = True
 render = True
 generate = True
+reverse = True
 
 input = 'map.sr'
 folder = 'output'
@@ -15,10 +16,10 @@ exp_iter = '100'
 rho = '1000'
 max_iter = '1000'
 tol = '1e-7'
-theme = 'Nightmare'
+theme = 'Paper'
 
-width = '1080'
-height = '1080'
+width = '3840'
+height = '3840'
 
 #width = 1920
 #height = 1080
@@ -76,6 +77,19 @@ if generate:
             for i in range(40):
                 video.write(f)
         video.write(f)
+
+    if reverse:
+        print('reverse!')
+        pngs = sorted(pngs, reverse=True)
+        for idx, p in enumerate(pngs):
+            print('reversing {}'.format(p))
+            f = cv2.imread(p)
+            f = cv2.resize(f, (resize_width, resize_height))
+            
+            if idx == 0:
+                for i in range(3):
+                    video.write(f)
+            video.write(f)
 
     video.release()
 

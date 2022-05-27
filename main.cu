@@ -9,7 +9,7 @@
 
 #include <cuda.h>
 #include "pcg_solver.hpp"
-#include "../common/error_helper.hpp"
+#include "common/error_helper.hpp"
 
 // ===== Constant =====
 int nx;
@@ -584,25 +584,25 @@ __global__ void _extrapolate_u(int* const nv, int* const v, double* const nu, do
     double sum = 0;
     int count = 0;
     
-    if(x < d_nx && v[idx+1] != 0)
+    if(v[idx+1] != 0)
     {
         sum += u[idx+1];
         count++;
     }
 
-    if(x > 0 && v[idx-1] != 0)
+    if(v[idx-1] != 0)
     {
         sum += u[idx-1];
         count++;
     }
 
-    if(y+1 < d_ny && v[idx+d_nx] != 0)
+    if(v[idx+d_nx] != 0)
     {
         sum += u[idx+d_nx];
         count++;
     }
 
-    if(y > 0 && v[idx-d_nx] != 0)
+    if(v[idx-d_nx] != 0)
     {
         sum += u[idx-d_nx];
         count++;
@@ -630,25 +630,25 @@ __global__ void _extrapolate_v(int* const nv, int* const v, double* const nu, do
     double sum = 0;
     int count = 0;
     
-    if(x+1 < d_nx && v[idx+1] != 0)
+    if(v[idx+1] != 0)
     {
         sum += u[idx+1];
         count++;
     }
 
-    if(x > 0 && v[idx-1] != 0)
+    if(v[idx-1] != 0)
     {
         sum += u[idx-1];
         count++;
     }
 
-    if(y < d_ny && v[idx+d_nx] != 0)
+    if(v[idx+d_nx] != 0)
     {
         sum += u[idx+d_nx];
         count++;
     }
 
-    if(y > 0 && v[idx-d_nx] != 0)
+    if(v[idx-d_nx] != 0)
     {
         sum += u[idx-d_nx];
         count++;

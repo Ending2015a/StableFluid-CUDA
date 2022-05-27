@@ -1,4 +1,4 @@
-input="water500x500_011.png"
+input="water500x500_003.png"
 dx=0.1
 dy=0.1
 rate=3
