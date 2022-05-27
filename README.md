@@ -1,7 +1,7 @@
 # Stable Fluid - CUDA
 
 
-A really old project that implemented the Stable Fluid using CUDA, cuBLAS and cuSPARSE.
+A really old project that implemented the [Stable Fluids](https://pages.cs.wisc.edu/~chaol/data/cs777/stam-stable_fluids.pdf) using CUDA, cuBLAS and cuSPARSE.
 
 
 ## Related projects
@@ -10,7 +10,11 @@ A really old project that implemented the Stable Fluid using CUDA, cuBLAS and cu
 
 ## Demo
 
+### Small scale
+<img src="https://github.com/Ending2015a/StableFluid-CUDA/blob/master/assets/fluid%20simulation%20-%20small%20scale.gif">
 
+### Large scale
+<img src="https://github.com/Ending2015a/StableFluid-CUDA/blob/master/assets/fluid%20simulation%20-%20large%20scale.gif">
 
 
 
